@@ -1,0 +1,172 @@
+// Money + label formatting. Amounts from the BE are bigint minor-unit STRINGS
+// (USDC = 6dp); never parse them as JS numbers for math — only for display.
+
+/** "50" / "50.25" dollars → USDC minor (6dp) bigint. Integer math, no float drift. */
+export function dollarsToMinor(input: string): bigint {
+  const [whole, frac = ""] = input.replace(/[^0-9.]/g, "").split(".");
+  const fracPadded = frac.slice(0, 6).padEnd(6, "0");
+  return BigInt(whole || "0") * 1_000_000n + BigInt(fracPadded || "0");
+}
+
+/** "1500000" (6dp) → "$1.50". Negative-safe. */
+export function formatUsdc(minor: string, decimals = 6): string {
+  const neg = minor.startsWith("-");
+  const digits = (neg ? minor.slice(1) : minor).padStart(decimals + 1, "0");
+  const whole = digits.slice(0, digits.length - decimals);
+  const frac = digits.slice(digits.length - decimals).slice(0, 2).padEnd(2, "0");
+  const wholeGrouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${neg ? "-" : ""}$${wholeGrouped}.${frac}`;
+}
+
+// Indicative USD→PHP for display only. Real FX comes from the remit quote (unbuilt);
+// this is just the headline "≈ ₱x" on the wallet card.
+export const PHP_PER_USD = 61.68;
+
+/** USDC minor-unit string → "₱x.xx" at the indicative rate (display only). */
+export function formatPhpFromUsdcMinor(minor: string, rate = PHP_PER_USD): string {
+  const usd = Number(minor) / 1_000_000;
+  const php = usd * rate;
+  return `₱${php.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** PHP minor-unit string (2dp) → "₱1,234.56". Negative-safe. */
+export function formatPhp(minor: string, decimals = 2): string {
+  const neg = minor.startsWith("-");
+  const digits = (neg ? minor.slice(1) : minor).padStart(decimals + 1, "0");
+  const whole = digits.slice(0, digits.length - decimals);
+  const frac = digits.slice(digits.length - decimals).padEnd(decimals, "0");
+  const wholeGrouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${neg ? "-" : ""}₱${wholeGrouped}.${frac}`;
+}
+
+const REMIT_STATUS_LABELS: Record<string, string> = {
+  authorized: "Sending",
+  pending: "Sending",
+  confirming: "Sending",
+  completed: "Delivered",
+  failed: "Failed",
+  reversed: "Refunded",
+};
+export function remitStatusLabel(status: string): string {
+  return REMIT_STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+}
+
+const REMIT_RAIL_LABELS: Record<string, string> = {
+  gcash: "GCash",
+  maya: "Maya",
+  bank_instapay: "Bank (InstaPay)",
+  bank_pesonet: "Bank (PESONet)",
+  qr_ph: "QR Ph",
+};
+export function remitRailLabel(rail?: string | null): string {
+  if (!rail) return "Recipient";
+  return REMIT_RAIL_LABELS[rail] ?? rail.replace(/_/g, " ");
+}
+
+export function initialsOf(first?: string | null, last?: string | null): string {
+  const a = (first ?? "").trim()[0] ?? "";
+  const b = (last ?? "").trim()[0] ?? "";
+  return (a + b).toUpperCase() || "?";
+}
+
+const TX_LABELS: Record<string, string> = {
+  fund_in: "Money added",
+  fund_in_returned: "Deposit returned",
+  crypto_deposit: "Crypto deposit",
+  remit: "Sent to family",
+  card_authz: "Card authorization",
+  card_settle: "Card purchase",
+  card_authz_reversal: "Card reversal",
+  yield_accrual: "Interest earned",
+};
+export function txLabel(kind: string): string {
+  return TX_LABELS[kind] ?? kind.replace(/_/g, " ");
+}
+
+export function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** "8 Jun '26" — the activity-list date style. */
+export function formatDateShort(iso: string): string {
+  const d = new Date(iso);
+  const day = d.getDate();
+  const mon = d.toLocaleDateString(undefined, { month: "short" });
+  const yr = `'${String(d.getFullYear()).slice(2)}`;
+  return `${day} ${mon} ${yr}`;
+}
+
+/** "07 Jun '26, 09:30 pm" — the transaction-detail timestamp. */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  const day = String(d.getDate()).padStart(2, "0");
+  const mon = d.toLocaleDateString(undefined, { month: "short" });
+  const yr = `'${String(d.getFullYear()).slice(2)}`;
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  return `${day} ${mon} ${yr}, ${time}`;
+}
+
+/**
+ * The human label for an activity row. Prefers a seeded/real counterparty name in
+ * metadata (displayName / counterparty / merchant), else the generic kind label.
+ */
+export function txDisplayName(t: { kind: string; metadata?: Record<string, unknown> }): string {
+  const m = t.metadata ?? {};
+  const name = m.displayName ?? m.counterparty ?? m.merchant;
+  if (typeof name === "string" && name.trim()) return name.trim();
+  return txLabel(t.kind);
+}
+
+/** First 1–2 letters of a display name, for the round avatar. */
+export function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0]!.slice(0, 1).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
+
+// Soft avatar tints (bg, fg) in the warm/cream palette — picked deterministically
+// from the name so a given merchant keeps the same colour across the app.
+const AVATAR_TINTS: { bg: string; fg: string }[] = [
+  { bg: "#EDE7F6", fg: "#6A4FB3" }, // lilac
+  { bg: "#E7F2EC", fg: "#2E7D5B" }, // green
+  { bg: "#FBEEDF", fg: "#B5701F" }, // amber
+  { bg: "#FCE8E6", fg: "#C0492F" }, // coral
+  { bg: "#E6EEF5", fg: "#2F5C85" }, // blue
+  { bg: "#F3E8F0", fg: "#9B3F7C" }, // plum
+];
+export function avatarTint(seed: string): { bg: string; fg: string } {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_TINTS[h % AVATAR_TINTS.length]!;
+}
+
+const DECLINE_REASON_LABELS: Record<string, string> = {
+  card_not_active: "Card not active",
+  capability_disabled: "Online payments off",
+  account_frozen: "Account frozen",
+  kyc_tier_insufficient: "Verification needed",
+  insufficient_funds: "Not enough balance",
+  mcc_blocked: "Merchant not allowed",
+  velocity_exceeded: "Spending limit reached",
+  geo_blocked: "Region not allowed",
+  fraud_hold: "Security hold",
+  suspicious_transaction: "Flagged for review",
+  internal_error: "Couldn't process",
+};
+export function declineReasonLabel(reason?: string | null): string {
+  if (!reason) return "Declined";
+  return DECLINE_REASON_LABELS[reason] ?? "Declined";
+}
+
+const CARD_STATUS_LABELS: Record<string, string> = {
+  not_activated: "Not activated",
+  active: "Active",
+  frozen: "Frozen",
+  locked: "Locked",
+  canceled: "Canceled",
+};
+export function cardStatusLabel(status: string): string {
+  return CARD_STATUS_LABELS[status] ?? status;
+}
