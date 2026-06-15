@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Spinner } from "@/components/ui";
 import { Home } from "@/app/screens/Home";
 import { Login } from "@/app/screens/Login";
+import { Welcome } from "@/app/screens/Welcome";
 import { Resume } from "@/app/screens/Resume";
 import { Pin } from "@/app/screens/onboarding/Pin";
 import { Name } from "@/app/screens/onboarding/Name";
@@ -17,6 +18,8 @@ import { TabLayout } from "@/app/screens/TabLayout";
 import { Send } from "@/app/screens/Send";
 import { Card } from "@/app/screens/Card";
 import { Save } from "@/app/screens/Save";
+import { SaveAmount } from "@/app/screens/save/Amount";
+import { SaveResult } from "@/app/screens/save/Result";
 import { Activity } from "@/app/screens/Activity";
 import { TxDetail } from "@/app/screens/TxDetail";
 import { RemitCompose } from "@/app/screens/RemitCompose";
@@ -37,6 +40,7 @@ export function App() {
     <Routes>
       {/* Entry gate — resolve where an authenticated user should resume. */}
       <Route path="/" element={<Resume />} />
+      <Route path="/welcome" element={<Welcome />} />
       <Route path="/login" element={<Login />} />
 
       {/* Onboarding funnel (pin → name → kyc → kyc-verify → kyc-status → done). */}
@@ -60,6 +64,8 @@ export function App() {
       <Route path="/tx/:id" element={<RequireAuth><TxDetail /></RequireAuth>} />
       <Route path="/add-money" element={<RequireAuth><AddMoney /></RequireAuth>} />
       <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
+      <Route path="/save/amount" element={<RequireAuth><SaveAmount /></RequireAuth>} />
+      <Route path="/save/result" element={<RequireAuth><SaveResult /></RequireAuth>} />
       <Route path="/remit/compose" element={<RequireAuth><RemitCompose /></RequireAuth>} />
       <Route path="/remit/:id" element={<RequireAuth><RemitDetail /></RequireAuth>} />
       <Route path="/more" element={<RequireAuth><More /></RequireAuth>} />

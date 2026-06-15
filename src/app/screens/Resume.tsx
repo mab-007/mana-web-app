@@ -27,7 +27,7 @@ export function Resume() {
   }, [ready, authenticated, navigate]);
 
   if (!ready) return <Spinner />;
-  if (!authenticated) return <Navigate to="/login" replace />;
+  if (!authenticated) return <Navigate to="/welcome" replace />;
 
   if (error) {
     return (

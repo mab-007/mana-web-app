@@ -82,7 +82,8 @@ export interface KycAddress {
 }
 
 export interface StartKycBody {
-  ssn?: string;
+  // National ID required end-to-end (BE D85/D71). US users → 9-digit SSN.
+  nationalId: string;
   email?: string;
   phoneCountryCode: string;
   phoneNumber: string;
@@ -184,6 +185,31 @@ export interface CardView {
 export interface CardsResponse {
   cards: CardView[];
   canIssue: boolean;
+}
+// BE-driven Card PDP content (GET /v1/cards/offer) — all copy from the backend.
+export interface CardBenefitRow {
+  icon: string; // stable key → mapped to an icon/visual on the client
+  title: string;
+  body: string;
+}
+export interface CardConsent {
+  key: string;
+  required: boolean;
+  text: string; // supports inline **bold** + [label](url)
+}
+export interface CardOfferResponse {
+  heading: string;
+  benefits: CardBenefitRow[];
+  ctaLabel: string;
+  disclosure: string;
+  consents: CardConsent[];
+  tosVersion: string; // recorded at issue (D85)
+}
+// Live USD→PHP rate (GET /v1/fx/usd-php → Transfi).
+export interface FxRateResponse {
+  phpPerUsd: string;
+  asOf: string;
+  source: string; // transfi | coingecko | fake | fallback
 }
 export interface CardStatusResponse {
   id: string;
@@ -302,17 +328,72 @@ export interface TransactionDetail {
 }
 
 // ─── Yield (BE: src/routes/yield.ts) ─────────────────────────
+export interface YieldIntroCopy {
+  cardHeading: string;
+  apyUnit: string; // e.g. "% APY"
+  body: string; // supports inline **bold**; APY already interpolated by the BE
+  bullets: { icon: string; text: string }[];
+  cta: string;
+}
+export interface YieldHomeCopy {
+  walletLabel: string;
+  earningNote: string; // APY already interpolated
+  addLabel: string;
+  withdrawLabel: string;
+  thisMonthLabel: string;
+  lifetimeLabel: string;
+  interestEarnedLabel: string;
+  upsell: { badge: string; title: string; body: string };
+}
+export interface YieldAmountCopy {
+  depositTitle: string;
+  withdrawTitle: string;
+  depositSourceLabel: string;
+  withdrawSourceLabel: string;
+  depositAvailable: string; // "{amount} available in main wallet"
+  withdrawAvailable: string; // "{amount} available in Save"
+  quickAmounts: number[]; // whole-dollar chips
+  allLabel: string;
+  depositCta: string; // "Add {amount} to Save"
+  withdrawCta: string; // "Move {amount} to main wallet"
+}
+export interface YieldResultCopy {
+  depositLoading: string;
+  withdrawLoading: string;
+  successTitle: string;
+  depositSuccessBody: string; // "{amount} added ..."
+  withdrawSuccessBody: string;
+  pendingTitle: string;
+  pendingBody: string;
+  failureTitle: string;
+  failureBody: string;
+  doneCta: string;
+  retryCta: string;
+}
+export interface YieldCopy {
+  intro: YieldIntroCopy;
+  home: YieldHomeCopy;
+  amount: YieldAmountCopy;
+  result: YieldResultCopy;
+}
 export interface YieldStatusResponse {
   enabled: boolean; // counsel gate — false ⇒ render "coming soon"
   eligible: boolean; // KYC approved + active wallet
+  optedIn: boolean; // has a Save wallet (ever deposited) ⇒ green home
   hasPosition: boolean;
   principalMinor: string; // cost basis
   currentValueMinor: string; // live vault value
   accruedMinor: string; // currentValue − principal
-  availableMinor: string; // deposit headroom
+  availableMinor: string; // deposit headroom (main wallet)
+  interestThisMonthMinor: string;
+  interestLifetimeMinor: string;
   indicativeApyBps: number;
+  apyLabel: string; // trimmed display string for the live rate ("3.5")
+  boostApyBps: number;
+  boostApyLabel: string; // trimmed display string for the boost ("4")
   vaultName: string;
   currency: string;
+  copy: YieldCopy; // BE-powered Save copy (intro + home + amount + result)
 }
 export interface YieldMoveResponse {
   transactionId: string;
@@ -481,8 +562,15 @@ export const api = {
 
   // ── Cards ──
   getCards: () => request<CardsResponse>("/v1/cards", { auth: true }),
-  issueCard: (idempotencyKey: string) =>
-    request<{ card: CardView }>("/v1/cards/issue", { method: "POST", auth: true, idempotencyKey }),
+  getCardOffer: () => request<CardOfferResponse>("/v1/cards/offer", { auth: true }),
+  getFxRate: () => request<FxRateResponse>("/v1/fx/usd-php", { auth: true }),
+  issueCard: (tosVersion: string, idempotencyKey: string) =>
+    request<{ card: CardView }>("/v1/cards/issue", {
+      method: "POST",
+      body: { tosVersion },
+      auth: true,
+      idempotencyKey,
+    }),
   activateCard: (id: string, enableOnlineTransactions: boolean) =>
     request<ActivationResult>(`/v1/cards/${id}/activate`, {
       method: "POST",

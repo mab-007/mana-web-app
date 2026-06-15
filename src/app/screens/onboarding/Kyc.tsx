@@ -74,7 +74,7 @@ export function Kyc() {
     setError(null);
     const body: StartKycBody = {
       email: email.trim(),
-      ssn,
+      nationalId: ssn,
       phoneCountryCode,
       phoneNumber,
       occupation,

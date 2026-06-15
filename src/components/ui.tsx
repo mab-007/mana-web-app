@@ -34,7 +34,7 @@ export function Screen({
 // max-w-md column. (Top padding clears the browser status area; bottom padding
 // gives breathing room above the nav bar.)
 export function TabScreen({ children }: { children: ReactNode }) {
-  return <div className="mx-auto w-full max-w-md px-6 pb-8 pt-10">{children}</div>;
+  return <div className="mx-auto w-full max-w-md px-6 pb-8 pt-4">{children}</div>;
 }
 
 // Centered loader for tab screens (fills the scroll area without forcing dvh like

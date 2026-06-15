@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CardFront } from "@/components/CardFront";
 import { EyeIcon, GearIcon, SnowIcon } from "@/components/icons";
+import { RichText } from "@/components/RichText";
 import { TabHeader } from "@/components/TabHeader";
 import { Button, Loader, TabScreen } from "@/components/ui";
 import {
   api,
   ApiError,
+  type CardOfferResponse,
   type CardTxnView,
   type CardView,
   newIdempotencyKey,
@@ -19,15 +21,25 @@ interface Revealed {
   exp: string;
 }
 
-const BENEFITS = [
-  { value: "1%", title: "Flat cashback on everything", body: "Earn 1% back on every purchase — no categories, no caps." },
-  { value: "$0", title: "Zero fees", body: "No joining fee, no renewal fee, no card fee." },
-  { value: "Instant", title: "Ready to spend in minutes", body: "Get approved and pay online or in-store right away." },
-];
+// BE benefit-row icon key → a tasteful glyph shown in the mint-green square (the
+// web has no shared icon set here, so we mirror the mobile BENEFIT_ICON keys with
+// readable inline characters). Unknown keys fall back to a neutral dot.
+const BENEFIT_GLYPH: Record<string, string> = {
+  tag: "🏷",
+  cashback: "$",
+  fees: "🛍",
+  instant: "⚡",
+  savings: "📈",
+};
 
 export function Card() {
   const [card, setCard] = useState<CardView | null>(null);
   const [canIssue, setCanIssue] = useState(false);
+  // BE-driven PDP content + consents (D85/D91): heading, benefit rows, CTA label,
+  // disclosure, and one checkbox per consent. Every `required` consent must be
+  // ticked before the CTA enables; the agreed terms version is recorded at issue.
+  const [offer, setOffer] = useState<CardOfferResponse | null>(null);
+  const [accepted, setAccepted] = useState<Record<string, boolean>>({});
   const [feed, setFeed] = useState<CardTxnView[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -51,10 +63,6 @@ export function Card() {
   const [physicalDone, setPhysicalDone] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [replaceReason, setReplaceReason] = useState<ReplaceReason>("lost");
-
-  // Cardholder T&C — inline checkbox on the PDP gates the issue CTA (no separate
-  // terms page; the BE still records acceptance via acceptTos at issue).
-  const [tncAccepted, setTncAccepted] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -81,15 +89,28 @@ export function Card() {
     };
   }, [load]);
 
+  // BE-driven PDP copy: heading, benefit rows, CTA label, disclosure, consents.
+  useEffect(() => {
+    api
+      .getCardOffer()
+      .then(setOffer)
+      .catch(() => {});
+  }, []);
+
+  const requiredConsents = offer?.consents.filter((c) => c.required) ?? [];
+  const allRequiredAccepted =
+    requiredConsents.length > 0 && requiredConsents.every((c) => accepted[c.key]);
+  const toggleConsent = (key: string) =>
+    setAccepted((prev) => ({ ...prev, [key]: !prev[key] }));
+
   async function getMyCard() {
-    if (busy) return;
+    if (busy || !offer || !allRequiredAccepted) return;
     setBusy(true);
     setError(null);
     try {
-      // ToS gates card issuance (D70) — accept then issue.
-      const state = await api.getState();
-      if (!state.tos.accepted) await api.acceptTos(state.legal.version, newIdempotencyKey());
-      await api.issueCard(newIdempotencyKey());
+      // Consent is captured by the PDP checkboxes; the agreed terms version is
+      // recorded at issue (D85/D91).
+      await api.issueCard(offer.tosVersion, newIdempotencyKey());
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't issue your card. Try again.");
@@ -187,63 +208,78 @@ export function Card() {
 
   if (loading) return <Loader label="Loading your card…" />;
 
-  // ── No live card: PDP (issuable) or a not-yet-verified note. ──
+  // ── No live card: BE-driven PDP (issuable) or a not-yet-verified note. ──
   if (!card) {
     return (
       <TabScreen>
         <TabHeader title="Card" />
         {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
-        {canIssue ? (
+        {canIssue && offer ? (
           <>
             <div className="mt-4">
               <CardFront number="4218  5520  8841  0274" name="MARIA SANTOS" validThru="08/29" />
             </div>
-            <h2 className="mt-6 font-serif text-[22px] text-ink">A card built for OFWs</h2>
-            <p className="mt-2 text-[15px] leading-6 text-ink-soft">
-              1% flat cashback on every purchase, zero fees, and an instant card you can spend
-              right away.
-            </p>
-            <div className="mt-5 space-y-3">
-              {BENEFITS.map((b) => (
-                <div key={b.title} className="flex gap-3 rounded-card border border-border bg-surface p-4 shadow-card">
-                  <span className="font-serif text-[22px] text-accent">{b.value}</span>
-                  <span>
-                    <span className="block text-[15px] text-ink">{b.title}</span>
-                    <span className="block text-[13px] text-ink-soft">{b.body}</span>
+
+            {offer.heading ? (
+              <h2 className="mt-6 font-serif text-[34px] leading-[1.05] text-ink">
+                {offer.heading}
+              </h2>
+            ) : null}
+
+            {/* Benefit rows — fully BE-driven; a row the BE omits simply isn't here. */}
+            <div className="mt-5">
+              {offer.benefits.map((b, i) => (
+                <div
+                  key={`${b.icon}-${i}`}
+                  className="flex items-start gap-3.5 border-t border-border py-4"
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#DCEDE3] text-[20px] font-semibold text-[#1F6B43]">
+                    {BENEFIT_GLYPH[b.icon] ?? "•"}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[17px] font-semibold text-ink">{b.title}</span>
+                    <span className="block text-[14px] leading-5 text-ink-soft">{b.body}</span>
                   </span>
                 </div>
               ))}
+              <div className="border-t border-border" />
             </div>
-            <label className="mt-5 flex items-start gap-2.5">
-              <input
-                type="checkbox"
-                checked={tncAccepted}
-                onChange={(e) => setTncAccepted(e.target.checked)}
-                className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[#D8623E]"
-              />
-              <span className="text-[13px] leading-5 text-ink-soft">
-                I agree to the{" "}
-                <a
-                  href="https://mymana.xyz/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-accent underline"
-                >
-                  terms &amp; conditions
-                </a>
-                .
-              </span>
-            </label>
-            <div className="mt-3">
+
+            {/* One checkbox per BE consent (E-Sign + card issuance). */}
+            <div className="mt-5 space-y-3.5">
+              {offer.consents.map((c) => {
+                const on = accepted[c.key] ?? false;
+                return (
+                  <label key={c.key} className="flex cursor-pointer items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => toggleConsent(c.key)}
+                      className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[#D8623E]"
+                    />
+                    <RichText text={c.text} className="text-[13px] leading-5 text-ink-soft" />
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="mt-5">
               <Button
-                label="Get my card"
+                label={offer.ctaLabel}
                 className="!rounded-card"
                 onClick={getMyCard}
                 loading={busy}
-                disabled={busy || !tncAccepted}
+                disabled={busy || !allRequiredAccepted}
               />
             </div>
+            {offer.disclosure ? (
+              <p className="mt-3 text-center text-[13px] leading-[18px] text-ink-faint">
+                {offer.disclosure}
+              </p>
+            ) : null}
           </>
+        ) : canIssue ? (
+          <Loader label="Loading your card…" />
         ) : (
           <div className="mt-10 flex flex-col items-center gap-3 text-center">
             <CardFront number="4218  5520  8841  0274" name="MARIA SANTOS" validThru="08/29" dimmed />

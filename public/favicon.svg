@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 124 130" role="img" aria-label="Mana — Twin Sails mark">
+  <title>Mana — Twin Sails</title>
+  <desc>Two triangular sails — Gabi navy and Tanglaw coral — set on a horizon line above a soft water ripple.</desc>
+  
+  <path d="M16 100 L46 24 L76 100 Z" fill="#10243E"></path>
+  
+  <path d="M50 100 L80 38 L110 100 Z" fill="#F2664B"></path>
+  
+  <path d="M6 108 L118 108" fill="none" stroke="#10243E" stroke-width="4" stroke-linecap="round"></path>
+  
+  <path d="M22 118 Q34 114 46 118 T70 118 T94 118" fill="none" stroke="#10243E" stroke-width="2.5" stroke-linecap="round" opacity="0.5"></path>
+</svg>
