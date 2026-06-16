@@ -202,7 +202,9 @@ export interface CardOfferResponse {
   benefits: CardBenefitRow[];
   ctaLabel: string;
   disclosure: string;
-  consents: CardConsent[];
+  acknowledgements: string[]; // bullet pointers shown above the checkbox (markdown)
+  consent: CardConsent; // the single "I agree to the T&C" checkbox that gates the CTA
+  consents: CardConsent[]; // deprecated back-compat (= [consent]); use `consent`
   tosVersion: string; // recorded at issue (D85)
 }
 // Live USD→PHP rate (GET /v1/fx/usd-php → Transfi).

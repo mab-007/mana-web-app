@@ -35,9 +35,9 @@ const BENEFIT_GLYPH: Record<string, string> = {
 export function Card() {
   const [card, setCard] = useState<CardView | null>(null);
   const [canIssue, setCanIssue] = useState(false);
-  // BE-driven PDP content + consents (D85/D91): heading, benefit rows, CTA label,
-  // disclosure, and one checkbox per consent. Every `required` consent must be
-  // ticked before the CTA enables; the agreed terms version is recorded at issue.
+  // BE-driven PDP content (D85/D91/D93): heading, benefit rows, CTA label,
+  // disclosure, read-only acknowledgement bullets, and ONE "I agree to the T&C"
+  // checkbox that gates the CTA; the agreed terms version is recorded at issue.
   const [offer, setOffer] = useState<CardOfferResponse | null>(null);
   const [accepted, setAccepted] = useState<Record<string, boolean>>({});
   const [feed, setFeed] = useState<CardTxnView[]>([]);
@@ -97,9 +97,12 @@ export function Card() {
       .catch(() => {});
   }, []);
 
-  const requiredConsents = offer?.consents.filter((c) => c.required) ?? [];
-  const allRequiredAccepted =
-    requiredConsents.length > 0 && requiredConsents.every((c) => accepted[c.key]);
+  // Single gating consent (D93): the CTA enables once the one "I agree" box is on.
+  // Tolerate an older BE shape (fall back to the first legacy `consents[]` entry).
+  const consent = offer ? (offer.consent ?? offer.consents?.[0]) : undefined;
+  const acknowledgements = offer?.acknowledgements ?? [];
+  const consentAccepted = consent ? (accepted[consent.key] ?? false) : false;
+  const allRequiredAccepted = consentAccepted;
   const toggleConsent = (key: string) =>
     setAccepted((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -245,23 +248,30 @@ export function Card() {
               <div className="border-t border-border" />
             </div>
 
-            {/* One checkbox per BE consent (E-Sign + card issuance). */}
-            <div className="mt-5 space-y-3.5">
-              {offer.consents.map((c) => {
-                const on = accepted[c.key] ?? false;
-                return (
-                  <label key={c.key} className="flex cursor-pointer items-start gap-2.5">
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={() => toggleConsent(c.key)}
-                      className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[#D8623E]"
-                    />
-                    <RichText text={c.text} className="text-[13px] leading-5 text-ink-soft" />
-                  </label>
-                );
-              })}
-            </div>
+            {/* Read-only acknowledgement bullets (the legal points). */}
+            {acknowledgements.length > 0 ? (
+              <ul className="mt-5 space-y-2.5">
+                {acknowledgements.map((a, i) => (
+                  <li key={i} className="flex items-start gap-2.5">
+                    <span className="mt-px text-[13px] leading-5 text-ink-soft">•</span>
+                    <RichText text={a} className="text-[13px] leading-5 text-ink-soft" />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {/* Single "I agree to the T&C" checkbox that gates the CTA (D93). */}
+            {consent ? (
+              <label className="mt-4 flex cursor-pointer items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={consentAccepted}
+                  onChange={() => toggleConsent(consent.key)}
+                  className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[#D8623E]"
+                />
+                <RichText text={consent.text} className="text-[13px] leading-5 text-ink-soft" />
+              </label>
+            ) : null}
 
             <div className="mt-5">
               <Button
