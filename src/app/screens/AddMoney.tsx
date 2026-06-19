@@ -9,7 +9,8 @@ import {
   WalletIcon,
 } from "@/components/icons";
 import { api, ApiError, newIdempotencyKey } from "@/lib/api";
-import { formatPhp, formatUsdc, PHP_PER_USD } from "@/lib/format";
+import { useUsdPhp } from "@/lib/fx";
+import { formatPhp, formatUsdc } from "@/lib/format";
 
 type Step = "method" | "source" | "amount" | "review" | "sent";
 
@@ -45,6 +46,7 @@ function toMinorUsd(input: string): bigint {
 // method → [source for PH] → amount → review → sent.
 export function AddMoney() {
   const navigate = useNavigate();
+  const usdPhp = useUsdPhp();
   const [step, setStep] = useState<Step>("method");
   const [method, setMethod] = useState("ach");
   const [source, setSource] = useState<string | null>(null);
@@ -60,10 +62,10 @@ export function AddMoney() {
     if (!amount) return 0n;
     if (isPh) {
       const php = Number(amount.replace(/[^0-9.]/g, "")) || 0;
-      return BigInt(Math.round((php / PHP_PER_USD) * 1_000_000));
+      return BigInt(Math.round((php / usdPhp) * 1_000_000));
     }
     return toMinorUsd(amount);
-  }, [amount, isPh]);
+  }, [amount, isPh, usdPhp]);
 
   const fromLabel = isPh ? SOURCE_LABEL[source ?? ""] ?? "Philippines" : METHOD_LABEL[method] ?? "Bank";
 
@@ -114,7 +116,7 @@ export function AddMoney() {
       <FlowScreen title="Add money" onBack={() => navigate("/home")}>
         <h1 className="font-serif text-[26px] text-ink">How do you want to add money?</h1>
         <p className="mt-2 text-[14px] leading-5 text-ink-soft">
-          Pick a source. Fees and arrival times are shown up front.
+          Pick a source. Fees and arrival times are shown up front — never at confirm.
         </p>
         <div className="mt-5 space-y-3">
           {METHODS.map((m) => (
@@ -178,14 +180,16 @@ export function AddMoney() {
           {isPh ? "You send" : "Amount"}
         </p>
         <div className="mt-2 flex items-center gap-2 border-b-2 border-border py-2">
-          <span className="font-serif text-[34px] text-ink">{isPh ? "₱" : "$"}</span>
+          <span className="font-sans text-[34px] font-extrabold tracking-[-0.02em] text-ink">
+            {isPh ? "₱" : "$"}
+          </span>
           <input
             autoFocus
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
             placeholder="0.00"
-            className="w-full bg-transparent font-serif text-[34px] text-ink outline-none placeholder:text-ink-faint"
+            className="w-full bg-transparent font-sans text-[34px] font-extrabold tracking-[-0.02em] text-ink outline-none placeholder:font-normal placeholder:text-ink-faint"
           />
           <span className="text-[14px] font-semibold text-ink-faint">{isPh ? "PHP" : "USD"}</span>
         </div>
@@ -193,11 +197,13 @@ export function AddMoney() {
         <p className="mt-8 text-[12px] font-bold uppercase tracking-wider text-ink-faint">
           {isPh ? "Wallet receives (USD)" : "Added to wallet"}
         </p>
-        <p className="mt-1 font-serif text-[30px] text-ink">{formatUsdc(usdcMinor.toString())}</p>
+        <p className="mt-1 font-sans text-[30px] font-extrabold tracking-[-0.02em] text-ink">
+          {formatUsdc(usdcMinor.toString())}
+        </p>
 
         {isPh ? (
           <div className="mt-8 space-y-1 text-[13px] text-ink-soft">
-            <p>Exchange rate (mid-market) · 1 USD = ₱{PHP_PER_USD.toFixed(2)}</p>
+            <p>Exchange rate (live) · 1 USD = ₱{usdPhp.toFixed(2)}</p>
             <p>Mana fee · {formatPhp("0")}</p>
           </div>
         ) : null}
@@ -211,10 +217,12 @@ export function AddMoney() {
       <FlowScreen
         title="Review"
         onBack={() => setStep("amount")}
-        footer={<Button label="Confirm" onClick={confirm} loading={busy} disabled={busy} />}
+        footer={<Button label="Lock rate & confirm" onClick={confirm} loading={busy} disabled={busy} />}
       >
         <h1 className="font-serif text-[26px] text-ink">One last look.</h1>
-        <p className="mt-2 text-[14px] text-ink-soft">What's hitting your wallet, and what it costs.</p>
+        <p className="mt-2 text-[14px] text-ink-soft">
+          This confirms what's hitting your wallet, and what it costs.
+        </p>
 
         <div className="mt-6 flex flex-col items-center rounded-card border border-border bg-surface p-6 shadow-card">
           <span className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">Added to wallet</span>
@@ -228,7 +236,7 @@ export function AddMoney() {
 
         <dl className="mt-6 rounded-card border border-border bg-surface p-1 shadow-card">
           <ReviewRow label="From" value={fromLabel} />
-          {isPh ? <ReviewRow label="Rate" value={`1 USD = ₱${PHP_PER_USD.toFixed(2)}`} /> : null}
+          {isPh ? <ReviewRow label="Rate" value={`1 USD = ₱${usdPhp.toFixed(2)}`} /> : null}
           <ReviewRow label="Mana fee" value={formatUsdc("0")} />
           <ReviewRow label="Arrives" value="Instantly" />
           <ReviewRow label="You receive" value={formatUsdc(usdcMinor.toString())} strong last />
@@ -256,6 +264,9 @@ export function AddMoney() {
           <ReviewRow label="Mana fee" value={formatUsdc("0")} />
           <ReviewRow label="Arrives" value="Instantly" last />
         </dl>
+        <div className="mt-4 w-full rounded-card border border-border bg-surface p-3 text-left text-[13px] leading-5 text-ink-soft">
+          ⏱ We'll let you know when it's done. Your balance updates automatically.
+        </div>
       </div>
     </Screen>
   );

@@ -2,29 +2,27 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Loader, Screen } from "@/components/ui";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { CheckIcon, CopyIcon } from "@/components/icons";
 import {
   api,
   ApiError,
   type AchAccountResponse,
   type BalanceResponse,
-  type WalletAddressResponse,
 } from "@/lib/api";
-import { formatPhpFromUsdcMinor, formatUsdc, PHP_PER_USD } from "@/lib/format";
+import { useUsdPhp } from "@/lib/fx";
+import { formatPhpFromUsdcMinor, formatUsdc } from "@/lib/format";
 
-function shortAddr(a: string): string {
-  return a.length > 14 ? `${a.slice(0, 8)}…${a.slice(-4)}` : a;
-}
-
-// L1 account / USD-wallet screen. Surfaces the US virtual-account (ACH) details —
+// L1 account screen ("Accounts"). Surfaces the US virtual-account (ACH) details —
 // fetching them from the BE is what "books" the VA (provisioned at KYC approval,
-// then encrypt-and-cached on first read, D72). Reachable from Home.
+// then encrypt-and-cached on first read, D72) — plus a Passbook entry. Reachable
+// from Home. (Parity, cont.74: no crypto-wallet row.)
 export function Account() {
   const navigate = useNavigate();
   const { logout } = usePrivy();
+  const usdPhp = useUsdPhp();
   const [balance, setBalance] = useState<BalanceResponse | null>(null);
   const [ach, setAch] = useState<AchAccountResponse | null>(null);
-  const [wallet, setWallet] = useState<WalletAddressResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [vaBusy, setVaBusy] = useState(false);
   const [vaError, setVaError] = useState<string | null>(null);
@@ -50,14 +48,12 @@ export function Account() {
 
   useEffect(() => {
     (async () => {
-      const [bal, achRes, walletRes] = await Promise.all([
+      const [bal, achRes] = await Promise.all([
         api.getBalance().catch(() => null),
         api.getFundInAccount().catch(() => null),
-        api.getWalletAddress().catch(() => null),
       ]);
       setBalance(bal);
       setAch(achRes);
-      setWallet(walletRes);
       setLoading(false);
     })();
   }, []);
@@ -83,21 +79,21 @@ export function Account() {
         />
       }
     >
-      <div className="mb-2 flex items-center justify-between">
-        <button onClick={() => navigate("/home")} className="text-[15px] text-accent" aria-label="Back">
-          ←
-        </button>
-        <span className="font-serif text-[18px] text-ink">USD Wallet</span>
-        <span className="w-4" />
-      </div>
+      <ScreenHeader title="Accounts" onBack={() => navigate("/home")} />
 
-      <p className="mt-4 font-serif text-[40px] leading-none text-ink">{formatUsdc(spendable)}</p>
-      <p className="mt-2 text-[13px] text-ink-soft">
-        ≈ {formatPhpFromUsdcMinor(spendable)} · 1 USD = ₱{PHP_PER_USD.toFixed(2)}
+      <p className="mt-4 text-center font-sans text-[46px] font-extrabold leading-none tracking-[-0.02em] text-ink">
+        {formatUsdc(spendable)}
+      </p>
+      <p className="mt-2 text-center text-[13px] text-ink-soft">
+        ≈ {formatPhpFromUsdcMinor(spendable, usdPhp)} · 1 USD = ₱{usdPhp.toFixed(2)}
       </p>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <Button label="Send" className="!bg-field !text-ink" onClick={() => navigate("/send")} />
+      <div className="mt-6 grid grid-cols-2 gap-3">
+        <Button
+          label="Send"
+          className="!border !border-border !bg-transparent !text-accent"
+          onClick={() => navigate("/send")}
+        />
         <Button label="Add money" onClick={() => navigate("/add-money")} />
       </div>
 
@@ -106,8 +102,10 @@ export function Account() {
       {/* US virtual account (ACH) */}
       {ach ? (
         <DetailRow
-          title="US account details"
-          value={`Account ending ${ach.achAccount.accountNumberLast4}`}
+          icon="person"
+          title="Account details"
+          value={`xx ${ach.achAccount.accountNumberLast4}`}
+          chip="Active"
           onClick={() => setSheetOpen(true)}
         />
       ) : (
@@ -126,13 +124,13 @@ export function Account() {
         </div>
       )}
 
-      {/* Wallet (crypto) */}
-      {wallet ? (
-        <DetailRow
-          title={`Wallet (${wallet.cryptoAddress.chain})`}
-          value={shortAddr(wallet.cryptoAddress.address)}
-        />
-      ) : null}
+      {/* Passbook — statement of the USD account itself (placeholder screen). */}
+      <DetailRow
+        icon="book"
+        title="Passbook"
+        value="Account transactions"
+        onClick={() => navigate("/passbook")}
+      />
 
       {sheetOpen && ach ? (
         <AccountSheet ach={ach} onClose={() => setSheetOpen(false)} />
@@ -142,26 +140,57 @@ export function Account() {
 }
 
 function DetailRow({
+  icon,
   title,
   value,
+  chip,
   onClick,
 }: {
+  icon: "person" | "book";
   title: string;
   value: string;
+  chip?: string;
   onClick?: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={!onClick}
-      className="mt-3 flex w-full items-center justify-between rounded-card border border-border bg-surface p-4 text-left shadow-card disabled:opacity-100"
+      className="flex w-full items-center gap-4 py-4 text-left disabled:opacity-100"
     >
-      <span>
-        <span className="block text-[15px] text-ink">{title}</span>
-        <span className="block text-[13px] text-ink-soft">{value}</span>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border text-ink-soft">
+        {icon === "person" ? <PersonIcon /> : <BookIcon />}
       </span>
-      {onClick ? <span className="text-ink-faint">›</span> : null}
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] text-ink-soft">{title}</span>
+        <span className="mt-0.5 block text-[17px] text-ink">{value}</span>
+      </span>
+      {chip ? (
+        <span className="rounded-pill bg-success/10 px-3 py-1 text-[13px] font-bold text-success">
+          {chip}
+        </span>
+      ) : onClick ? (
+        <span className="text-[18px] text-ink-faint">›</span>
+      ) : null}
     </button>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" />
+    </svg>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4Z" />
+      <path d="M18 16H7a2 2 0 0 0-2 2" />
+    </svg>
   );
 }
 

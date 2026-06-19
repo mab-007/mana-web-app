@@ -7,8 +7,11 @@ export function stepToRoute(step: string): string {
     case "pin_set":
       return "/onboarding/name";
     case "name_captured":
+      // Flow: name → ToS → KYC (D85, full parity with mobile). Biometric is
+      // mobile-only + non-gating, so name_captured resumes at the next real gate,
+      // the ToS page, which records consent then advances to tos_accepted.
+      return "/onboarding/tos";
     case "tos_accepted":
-      // ToS moved to card issuance (D70). name → KYC on web (biometric skipped).
       return "/onboarding/kyc";
     case "kyc_submitted":
     case "kyc_rejected":

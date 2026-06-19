@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader, TabScreen } from "@/components/ui";
-import { AccountAvatar } from "@/components/AccountAvatar";
 import { ActivityRow } from "@/components/ActivityRow";
+import { ReceiptIcon } from "@/components/icons";
+import { TabHeader } from "@/components/TabHeader";
 import {
   api,
   type AchAccountResponse,
@@ -13,23 +14,22 @@ import { useUsdPhp } from "@/lib/fx";
 import { formatPhpFromUsdcMinor, formatUsdc } from "@/lib/format";
 
 // Phase-3 dashboard for a fully-onboarded user, ported to faithfully match the
-// mobile Home (FE/app/(tabs)/home.tsx): greeting eyebrow + serif first name,
-// a cream USD WALLET card (balance + ≈PHP + Add money pill), then recent activity.
+// mobile Home (FE/app/(tabs)/home.tsx): a "Banking" header (no greeting eyebrow,
+// per parity), a cream ACCOUNTS card (balance + ≈PHP + Add money pill), then
+// recent activity.
 export function Home() {
   const navigate = useNavigate();
   const usdPhp = useUsdPhp();
   const [balance, setBalance] = useState<BalanceResponse | null>(null);
   const [txns, setTxns] = useState<TxView[] | null>(null);
-  const [firstName, setFirstName] = useState<string | null>(null);
   const [ach, setAch] = useState<AchAccountResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [bal, tx, state, achRes] = await Promise.allSettled([
+      const [bal, tx, achRes] = await Promise.allSettled([
         api.getBalance(),
         api.getTransactions({ limit: 5 }),
-        api.getState(),
         api.getFundInAccount().catch(() => null),
       ]);
       if (bal.status === "fulfilled") setBalance(bal.value);
@@ -38,10 +38,6 @@ export function Home() {
           bal.reason instanceof Error ? bal.reason.message : "Couldn't load your balance.",
         );
       setTxns(tx.status === "fulfilled" ? tx.value.transactions : []);
-      if (state.status === "fulfilled") {
-        const u = state.value.user;
-        setFirstName(u.legalFirstName ?? u.displayName?.split(" ")[0] ?? null);
-      }
       if (achRes.status === "fulfilled") setAch(achRes.value);
     })();
   }, []);
@@ -53,18 +49,7 @@ export function Home() {
 
   return (
     <TabScreen>
-      {/* Greeting + avatar */}
-      <header className="flex items-center justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-faint">
-            Magandang araw
-          </p>
-          <p className="mt-1 font-serif text-[26px] leading-tight text-ink">
-            {firstName ?? "there"}
-          </p>
-        </div>
-        <AccountAvatar />
-      </header>
+      <TabHeader title="Banking" />
 
       {/* USD wallet — tap the card body to open the account detail (L1) */}
       <button
@@ -73,7 +58,7 @@ export function Home() {
       >
         <div className="flex items-center justify-between">
           <span className="text-[12px] font-semibold uppercase tracking-[0.09em] text-ink-faint">
-            USD Wallet
+            ACCOUNTS
           </span>
           {ach ? (
             <span className="text-[13px] font-semibold tracking-[0.09em] text-ink-faint">
@@ -81,7 +66,7 @@ export function Home() {
             </span>
           ) : null}
         </div>
-        <p className="mt-5 font-serif text-[52px] leading-none text-ink">
+        <p className="mt-5 font-sans text-[52px] font-extrabold leading-none tracking-[-0.02em] text-ink">
           {formatUsdc(spendable)}
         </p>
         <p className="mt-2 text-[13px] text-ink-soft">
@@ -122,8 +107,9 @@ export function Home() {
         {txns === null ? (
           <p className="text-[14px] text-ink-faint">Loading…</p>
         ) : txns.length === 0 ? (
-          <div className="rounded-card border border-border bg-surface p-5 text-center shadow-card">
-            <p className="text-[14px] leading-5 text-ink-soft">
+          <div className="flex flex-col items-center gap-2 px-6 py-10 text-center text-ink-faint">
+            <ReceiptIcon />
+            <p className="max-w-xs text-[14px] leading-5 text-ink-soft">
               No activity yet — when you add or send money, it'll show up here.
             </p>
           </div>
@@ -131,7 +117,12 @@ export function Home() {
           <ul className="space-y-1">
             {txns.map((t) => (
               <li key={t.id}>
-                <ActivityRow t={t} onClick={() => navigate(`/tx/${t.id}`)} />
+                <ActivityRow
+                  t={t}
+                  onClick={() =>
+                    navigate(t.kind === "yield_accrual" ? `/interest/${t.id}` : `/tx/${t.id}`)
+                  }
+                />
               </li>
             ))}
           </ul>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Loader, Screen } from "@/components/ui";
 import { api, ApiError, type TransactionDetail } from "@/lib/api";
@@ -13,12 +13,31 @@ const STATUS_LABELS: Record<string, string> = {
   failed: "Failed",
 };
 
-// Full-screen transaction detail (not a tab) — amount hero, parties, timeline.
+// Full-screen transaction detail (not a tab) — amount hero, parties, details.
+// (cont.80 item 4: Timeline removed — not for end users; the Reference row copies
+// to the clipboard + shows a toast, mirroring the mobile tx detail.)
 export function TxDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<TransactionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  async function copyRef(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setToast(true);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(false), 1800);
+    } catch {
+      // Clipboard unavailable (e.g. insecure context) — silently no-op, no toast.
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -67,25 +86,19 @@ export function TxDetail() {
         {t.completedAt ? <Row label="Completed" value={formatDateTime(t.completedAt)} /> : null}
         {t.vendor ? <Row label="Via" value={t.vendor} /> : null}
         {t.failureReason ? <Row label="Reason" value={t.failureReason} danger /> : null}
-        <Row label="Reference" value={t.id} mono />
+        <Row label="Reference" value={t.id} mono onCopy={() => copyRef(t.id)} />
       </dl>
 
-      {data.timeline.length > 0 ? (
-        <div className="mt-6">
-          <h2 className="font-serif text-[18px] text-ink">Timeline</h2>
-          <ol className="mt-3 space-y-3">
-            {data.timeline.map((s, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                <span>
-                  <span className="block text-[14px] text-ink">{s.description}</span>
-                  <span className="block text-[12px] text-ink-faint">{formatDateTime(s.postedAt)}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      ) : null}
+      {/* Copy toast — small fade-in pill, bottom-center (mirrors mobile). */}
+      <div
+        className={`pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center transition-opacity duration-200 ${
+          toast ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <span className="rounded-full bg-ink px-4 py-2 text-[13px] text-bg shadow-card">
+          Copied to clipboard
+        </span>
+      </div>
     </Screen>
   );
 }
@@ -95,22 +108,37 @@ function Row({
   value,
   mono,
   danger,
+  onCopy,
 }: {
   label: string;
   value: string;
   mono?: boolean;
   danger?: boolean;
+  onCopy?: () => void;
 }) {
+  const valueClass = `max-w-[60%] break-words text-right text-[14px] ${
+    danger ? "text-danger" : "text-ink"
+  } ${mono ? "font-mono text-[12px]" : ""}`;
   return (
     <div className="flex items-start justify-between gap-4">
       <dt className="text-[13px] text-ink-soft">{label}</dt>
-      <dd
-        className={`max-w-[60%] break-words text-right text-[14px] ${
-          danger ? "text-danger" : "text-ink"
-        } ${mono ? "font-mono text-[12px]" : ""}`}
-      >
-        {value}
-      </dd>
+      {onCopy ? (
+        <button onClick={onCopy} className={`${valueClass} flex items-center gap-1.5 text-accent`}>
+          <span className="break-all">{value}</span>
+          <CopyIcon />
+        </button>
+      ) : (
+        <dd className={valueClass}>{value}</dd>
+      )}
     </div>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+      <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }

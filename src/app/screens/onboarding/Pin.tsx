@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, ErrorText, Screen } from "@/components/ui";
+import { CodeInput } from "@/components/CodeInput";
 import { api, ApiError, newIdempotencyKey } from "@/lib/api";
 
 type Phase = "create" | "confirm";
 
-// 6-digit app PIN (argon2id hashed server-side). One idempotency key per mount so
-// a genuine retry of the same PIN replays safely, but a 4xx (e.g. too-weak) isn't
-// cached → correcting and resubmitting works (HMAC request-hash, D19).
+// 4-digit app PIN (argon2id hashed server-side; matches mobile). One idempotency
+// key per mount so a genuine retry of the same PIN replays safely, but a 4xx (e.g.
+// too-weak) isn't cached → correcting and resubmitting works (HMAC request-hash, D19).
 export function Pin() {
   const navigate = useNavigate();
   const [idempotencyKey] = useState(newIdempotencyKey);
@@ -19,11 +20,11 @@ export function Pin() {
 
   const value = phase === "create" ? pin : confirm;
   const setValue = phase === "create" ? setPin : setConfirm;
-  const valid = /^\d{6}$/.test(value);
+  const valid = /^\d{4}$/.test(value);
 
-  function onChange(t: string) {
+  function onChange(next: string) {
     setError(null);
-    setValue(t.replace(/\D/g, "").slice(0, 6));
+    setValue(next);
   }
 
   async function onContinue() {
@@ -66,30 +67,17 @@ export function Pin() {
     >
       <div className="flex-1">
         <h1 className="mt-6 font-serif text-[26px] text-ink">
-          {phase === "create" ? "Set a 6-digit PIN." : "Confirm your PIN."}
+          {phase === "create" ? "Set a 4-digit PIN." : "Confirm your PIN."}
         </h1>
         <p className="mt-2 text-[15px] leading-6 text-ink-soft">
           {phase === "create"
             ? "You'll use it to unlock the app and approve sensitive actions."
             : "Type it once more so we know it stuck."}
         </p>
-        <input
-          key={phase}
-          className="mt-8 h-16 w-full rounded-card border border-border bg-field text-center text-3xl tracking-[12px] text-ink outline-none focus:border-ink"
-          value={value}
-          inputMode="numeric"
-          autoFocus
-          maxLength={6}
-          type="password"
-          placeholder="••••••"
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && valid && !submitting) onContinue();
-          }}
-        />
-        <p className="mt-3 text-center text-[13px] text-ink-faint">
-          Avoid obvious ones like 123456 or 111111.
-        </p>
+        <div className="mt-8">
+          <CodeInput key={phase} length={4} value={value} onChange={onChange} secure autoFocus />
+        </div>
+        <p className="mt-5 text-[13px] text-ink-faint">Avoid obvious ones like 1234 or 1111.</p>
         <ErrorText>{error}</ErrorText>
       </div>
     </Screen>

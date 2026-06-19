@@ -12,12 +12,14 @@ const SALARY = [
   { value: "100000-250000", label: "$100k–$250k" },
   { value: "250000+", label: "$250k+" },
 ];
+// REAL SOC codes from Rain's official list, curated to the remittance demographic
+// (matches mobile FE/app/onboarding/kyc.tsx). "Other" → broad service-sector
+// catch-all (39-9099).
 const OCCUPATION = [
-  { code: "15-1252", label: "Software Developer" },
-  { code: "11-1021", label: "Manager" },
-  { code: "13-2011", label: "Accountant" },
-  { code: "41-3091", label: "Sales" },
-  { code: "43-9061", label: "Office / Admin" },
+  { code: "29-1141", label: "Nurse / Healthcare worker" },
+  { code: "47-2061", label: "Construction" },
+  { code: "41-2031", label: "Retail / Hospitality" },
+  { code: "39-9099", label: "Other" },
 ];
 
 // Purpose-of-account + expected monthly volume are required by Rain but not
@@ -126,7 +128,7 @@ export function Kyc() {
         <h1 className="mt-6 font-serif text-[26px] text-ink">Verify your identity.</h1>
         <p className="mt-2 text-[15px] leading-6 text-ink-soft">
           Required to open your account. Your info goes straight to our regulated
-          partner.
+          partner — we never store your National ID.
         </p>
 
         <div className="mt-6 space-y-5">
@@ -163,15 +165,20 @@ export function Kyc() {
 
           <section className="space-y-3 rounded-card border border-border bg-surface p-4 shadow-card">
             <h2 className="font-serif text-[18px] text-ink">A few details</h2>
-            <Field
-              label="Social Security Number"
-              inputMode="numeric"
-              autoComplete="off"
-              value={ssn}
-              onChange={(e) => setSsn(e.target.value.replace(/\D/g, "").slice(0, 9))}
-              placeholder="9 digits"
-              type="password"
-            />
+            <div>
+              <Field
+                label="National ID"
+                inputMode="numeric"
+                autoComplete="off"
+                value={ssn}
+                onChange={(e) => setSsn(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                placeholder="9-digit National ID"
+                type="password"
+              />
+              <p className="mt-1 text-[12px] text-ink-faint">
+                Used only for identity verification by our regulated partner.
+              </p>
+            </div>
             <div>
               <span className="mb-1 block text-[13px] text-ink-soft">Occupation</span>
               <select className={SELECT_CLASS} value={occupation} onChange={(e) => setOccupation(e.target.value)}>

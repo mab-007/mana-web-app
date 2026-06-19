@@ -30,6 +30,9 @@ export function SaveResult() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copy, setCopy] = useState<YieldResultCopy>(FALLBACK);
+  // The amount actually moved, from the BE response (for withdraw this is the floored
+  // full payout, which the user never typed). Falls back to the param for deposit.
+  const [movedMinor, setMovedMinor] = useState<string>(amountMinor);
   // One idempotency key per attempt, stable across re-renders.
   const [idemKey] = useState(() => newIdempotencyKey());
 
@@ -46,8 +49,9 @@ export function SaveResult() {
       try {
         const res = isDeposit
           ? await api.yieldDeposit(amountMinor, idemKey)
-          : await api.yieldWithdraw({ amountMinor }, idemKey);
+          : await api.yieldWithdraw(idemKey);
         if (!active) return;
+        setMovedMinor(res.amountMinor);
         // Pending only if the BE returns a not-yet-settled status (real async path).
         const pending = res.status === "pending" || res.status === "processing";
         setPhase(pending ? "pending" : "success");
@@ -63,7 +67,7 @@ export function SaveResult() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const amount = formatUsdc(amountMinor);
+  const amount = formatUsdc(movedMinor);
   const done = () => navigate("/save");
 
   if (phase === "loading") {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CardFront } from "@/components/CardFront";
-import { EyeIcon, GearIcon, SnowIcon } from "@/components/icons";
+import { CardOutlineIcon, EyeIcon, GearIcon, SnowIcon } from "@/components/icons";
 import { RichText } from "@/components/RichText";
 import { TabHeader } from "@/components/TabHeader";
 import { Button, Loader, TabScreen } from "@/components/ui";
@@ -21,25 +21,74 @@ interface Revealed {
   exp: string;
 }
 
-// BE benefit-row icon key → a tasteful glyph shown in the mint-green square (the
-// web has no shared icon set here, so we mirror the mobile BENEFIT_ICON keys with
-// readable inline characters). Unknown keys fall back to a neutral dot.
-const BENEFIT_GLYPH: Record<string, string> = {
-  tag: "🏷",
-  cashback: "$",
-  fees: "🛍",
-  instant: "⚡",
-  savings: "📈",
-};
+// BE benefit-row icon key → a clean stroke icon (green, on the mint tile), mirroring
+// the mobile BENEFIT_ICON map (pricetag / logo-usd / bag-handle / flash / trending-up)
+// instead of emoji, so the rows read consistently. Unknown keys fall back to a dot.
+function BenefitIcon({ name }: { name: string }) {
+  const p = {
+    width: 24,
+    height: 24,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  switch (name) {
+    case "tag":
+      return (
+        <svg {...p}>
+          <path d="M3 11.5V4a1 1 0 0 1 1-1h7.5L21 12.5a1.5 1.5 0 0 1 0 2.1l-6.4 6.4a1.5 1.5 0 0 1-2.1 0L3 11.5Z" />
+          <circle cx="7.5" cy="7.5" r="1.2" />
+        </svg>
+      );
+    case "cashback":
+      return (
+        <svg {...p}>
+          <line x1="12" y1="2.5" x2="12" y2="21.5" />
+          <path d="M16.5 6.5C16.5 4.8 14.5 3.8 12 3.8S7.5 4.8 7.5 6.5 9.5 9.2 12 9.5s4.5 1.3 4.5 3-2 2.7-4.5 2.7-4.5-1-4.5-2.7" />
+        </svg>
+      );
+    case "fees":
+      return (
+        <svg {...p}>
+          <path d="M6 8h12l-1 12H7L6 8Z" />
+          <path d="M9 8a3 3 0 0 1 6 0" />
+        </svg>
+      );
+    case "instant":
+      return (
+        <svg {...p}>
+          <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+        </svg>
+      );
+    case "savings":
+      return (
+        <svg {...p}>
+          <polyline points="3 17 9 11 13 15 21 7" />
+          <polyline points="15 7 21 7 21 13" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="12" r="2" />
+        </svg>
+      );
+  }
+}
 
 export function Card() {
   const [card, setCard] = useState<CardView | null>(null);
   const [canIssue, setCanIssue] = useState(false);
-  // BE-driven PDP content (D85/D91/D93): heading, benefit rows, CTA label,
-  // disclosure, read-only acknowledgement bullets, and ONE "I agree to the T&C"
-  // checkbox that gates the CTA; the agreed terms version is recorded at issue.
+  // BE-driven PDP content (D85/D94): heading, benefit rows, CTA label, disclosure.
+  // The PDP body is marketing-only; the legal consents are individual checkboxes in
+  // the T&C modal the CTA opens; the agreed terms version is recorded at issue.
   const [offer, setOffer] = useState<CardOfferResponse | null>(null);
   const [accepted, setAccepted] = useState<Record<string, boolean>>({});
+  const [tncOpen, setTncOpen] = useState(false);
   const [feed, setFeed] = useState<CardTxnView[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -52,6 +101,9 @@ export function Card() {
   const [pinBusy, setPinBusy] = useState(false);
   const [revealed, setRevealed] = useState<Revealed | null>(null);
   const [revealUrl, setRevealUrl] = useState<string | null>(null);
+  // cont.80 item 1 (full parity w/ mobile): on reveal the face shows the CVV with
+  // the number masked; tapping the card flips to the full PAN (never both at once).
+  const [showNumber, setShowNumber] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Activation toggle (default ON = online transactions enabled).
@@ -97,22 +149,29 @@ export function Card() {
       .catch(() => {});
   }, []);
 
-  // Single gating consent (D93): the CTA enables once the one "I agree" box is on.
-  // Tolerate an older BE shape (fall back to the first legacy `consents[]` entry).
-  const consent = offer ? (offer.consent ?? offer.consents?.[0]) : undefined;
-  const acknowledgements = offer?.acknowledgements ?? [];
-  const consentAccepted = consent ? (accepted[consent.key] ?? false) : false;
-  const allRequiredAccepted = consentAccepted;
+  // D94: consents are individual checkboxes in the T&C modal the CTA opens — ALL
+  // must be ticked (or "Select all") before "Continue". Tolerate an older BE shape
+  // (single `consent`) so a missing field never breaks the page.
+  const consents = offer ? (offer.consents ?? (offer.consent ? [offer.consent] : [])) : [];
+  const allRequiredAccepted = consents.length > 0 && consents.every((c) => accepted[c.key] ?? false);
   const toggleConsent = (key: string) =>
     setAccepted((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleAll = () =>
+    setAccepted((prev) => {
+      const turnOn = !allRequiredAccepted; // all-on → clear; otherwise tick every box
+      const next = { ...prev };
+      for (const c of consents) next[c.key] = turnOn;
+      return next;
+    });
 
   async function getMyCard() {
     if (busy || !offer || !allRequiredAccepted) return;
+    setTncOpen(false);
     setBusy(true);
     setError(null);
     try {
-      // Consent is captured by the PDP checkboxes; the agreed terms version is
-      // recorded at issue (D85/D91).
+      // Consent is captured by the T&C modal checkboxes; the agreed terms version
+      // is recorded at issue (D85/D94).
       await api.issueCard(offer.tosVersion, newIdempotencyKey());
       await load();
     } catch (e) {
@@ -156,6 +215,7 @@ export function Card() {
     hideTimer.current = null;
     setRevealed(null);
     setRevealUrl(null);
+    setShowNumber(false);
   }
 
   function openPin(intent: "reveal" | "replace") {
@@ -180,6 +240,7 @@ export function Card() {
       const session = await api.revealCard(card.id, pin);
       setPinIntent(null);
       setPin("");
+      setShowNumber(false); // start masked: CVV shown, number hidden (tap to flip)
       const localStub = !session.revealUrl || session.revealUrl.includes("fake.local");
       const exp = `${String(card.expMonth).padStart(2, "0")}/${String(card.expYear).slice(-2)}`;
       if (session.mode === "plaintext" && session.pan) {
@@ -209,6 +270,56 @@ export function Card() {
     }
   }
 
+  // D94: T&C modal — individual consent checkboxes + Select all + Continue.
+  // "Continue" enables only when every consent is ticked. Defined once and rendered
+  // in BOTH the PDP (no-card) and live-card branches — the "Apply for Mana Card"
+  // CTA opens it from the PDP, so it must mount there too.
+  const tncModal = tncOpen ? (
+    <Overlay onClose={() => setTncOpen(false)}>
+      <p className="font-serif text-[20px] text-ink">Terms &amp; Conditions</p>
+      <p className="mt-1 text-[13px] text-ink-soft">
+        Please review and accept the following to continue.
+      </p>
+
+      <ul className="mt-4 space-y-3">
+        {consents.map((c) => (
+          <li key={c.key}>
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={accepted[c.key] ?? false}
+                onChange={() => toggleConsent(c.key)}
+                className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[#D8623E]"
+              />
+              <RichText text={c.text} className="text-[13px] leading-5 text-ink-soft" />
+            </label>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-3 border-t border-border" />
+      {/* Select all sits just above the CTA (D95). */}
+      <label className="mt-3 flex cursor-pointer items-center gap-2.5">
+        <input
+          type="checkbox"
+          checked={allRequiredAccepted}
+          onChange={toggleAll}
+          className="h-[18px] w-[18px] shrink-0 accent-[#D8623E]"
+        />
+        <span className="text-[15px] font-semibold text-ink">Select all</span>
+      </label>
+
+      <div className="mt-5">
+        <Button
+          label="Continue"
+          onClick={getMyCard}
+          loading={busy}
+          disabled={busy || !allRequiredAccepted}
+        />
+      </div>
+    </Overlay>
+  ) : null;
+
   if (loading) return <Loader label="Loading your card…" />;
 
   // ── No live card: BE-driven PDP (issuable) or a not-yet-verified note. ──
@@ -236,8 +347,8 @@ export function Card() {
                   key={`${b.icon}-${i}`}
                   className="flex items-start gap-3.5 border-t border-border py-4"
                 >
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#DCEDE3] text-[20px] font-semibold text-[#1F6B43]">
-                    {BENEFIT_GLYPH[b.icon] ?? "•"}
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#DCE9E1] text-[#2E7D5B]">
+                    <BenefitIcon name={b.icon} />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[17px] font-semibold text-ink">{b.title}</span>
@@ -248,38 +359,15 @@ export function Card() {
               <div className="border-t border-border" />
             </div>
 
-            {/* Read-only acknowledgement bullets (the legal points). */}
-            {acknowledgements.length > 0 ? (
-              <ul className="mt-5 space-y-2.5">
-                {acknowledgements.map((a, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <span className="mt-px text-[13px] leading-5 text-ink-soft">•</span>
-                    <RichText text={a} className="text-[13px] leading-5 text-ink-soft" />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
-            {/* Single "I agree to the T&C" checkbox that gates the CTA (D93). */}
-            {consent ? (
-              <label className="mt-4 flex cursor-pointer items-start gap-2.5">
-                <input
-                  type="checkbox"
-                  checked={consentAccepted}
-                  onChange={() => toggleConsent(consent.key)}
-                  className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[#D8623E]"
-                />
-                <RichText text={consent.text} className="text-[13px] leading-5 text-ink-soft" />
-              </label>
-            ) : null}
-
+            {/* D94: PDP body shows NO legal text — the CTA opens the T&C modal
+                where the user ticks each consent individually (Rain compliance). */}
             <div className="mt-5">
               <Button
                 label={offer.ctaLabel}
                 className="!rounded-card"
-                onClick={getMyCard}
+                onClick={() => setTncOpen(true)}
                 loading={busy}
-                disabled={busy || !allRequiredAccepted}
+                disabled={busy}
               />
             </div>
             {offer.disclosure ? (
@@ -299,6 +387,7 @@ export function Card() {
             </p>
           </div>
         )}
+        {tncModal}
       </TabScreen>
     );
   }
@@ -313,14 +402,29 @@ export function Card() {
       {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
 
       <div className="mt-4">
-        <CardFront
-          number={revealed?.number ?? `••••  ••••  ••••  ${card.last4}`}
-          name={card.cardholderName || "MANA CARDHOLDER"}
-          validThru={`${String(card.expMonth).padStart(2, "0")}/${String(card.expYear).slice(-2)}`}
-          cvc={revealed?.cvc}
-          dimmed={frozen}
-        />
+        <button
+          type="button"
+          onClick={() => revealed && setShowNumber((s) => !s)}
+          disabled={!revealed}
+          className="block w-full"
+        >
+          <CardFront
+            number={
+              revealed && showNumber ? revealed.number : `••••  ••••  ••••  ${card.last4}`
+            }
+            name={card.cardholderName || "MANA CARDHOLDER"}
+            validThru={`${String(card.expMonth).padStart(2, "0")}/${String(card.expYear).slice(-2)}`}
+            cvc={revealed && !showNumber ? revealed.cvc : undefined}
+            dimmed={frozen}
+          />
+        </button>
       </div>
+
+      {revealed ? (
+        <p className="mt-2 text-center text-[13px] text-ink-faint">
+          {showNumber ? "Tap card to show CVV" : "Tap card to show number"}
+        </p>
+      ) : null}
 
       <div className="mt-2 flex items-center justify-between">
         <span className="text-[13px] text-ink-soft">{cardStatusLabel(card.status)}</span>
@@ -365,11 +469,14 @@ export function Card() {
       )}
 
       {/* Card transactions */}
-      <h2 className="mt-8 font-serif text-[18px] text-ink">Card activity</h2>
+      <h2 className="mt-8 font-serif text-[18px] text-ink">Recent transaction</h2>
       <div className="mt-3">
         {feed.length === 0 ? (
-          <div className="rounded-card border border-border bg-surface p-5 text-center shadow-card">
-            <p className="text-[14px] text-ink-soft">No card activity yet.</p>
+          <div className="flex flex-col items-center gap-2 px-6 py-10 text-center text-ink-faint">
+            <CardOutlineIcon />
+            <p className="max-w-xs text-[14px] leading-[21px] text-ink-soft">
+              No card activity yet — your card payments will show up here.
+            </p>
           </div>
         ) : (
           <ul className="divide-y divide-border">
@@ -395,6 +502,8 @@ export function Card() {
           </ul>
         )}
       </div>
+
+      {tncModal}
 
       {/* PIN modal (reveal or replace) */}
       {pinIntent ? (

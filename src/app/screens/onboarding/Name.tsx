@@ -22,7 +22,8 @@ function ageInYears(dob: string): number {
 }
 
 // Legal name + DOB → BE profile. 18+ enforced client + server. Web skips the
-// biometric step (non-gating) → name goes straight to KYC.
+// biometric step (mobile-only, non-gating) → name goes to the ToS gate (D85),
+// which records consent and then advances to KYC.
 export function Name() {
   const navigate = useNavigate();
   const [idempotencyKey] = useState(newIdempotencyKey);
@@ -43,7 +44,7 @@ export function Name() {
         { firstName: firstName.trim(), lastName: lastName.trim(), dateOfBirth: dob },
         idempotencyKey,
       );
-      navigate("/onboarding/kyc", { replace: true });
+      navigate("/onboarding/tos", { replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong.");
     } finally {
