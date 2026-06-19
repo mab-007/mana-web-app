@@ -2,8 +2,21 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Loader, Screen } from "@/components/ui";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { api, ApiError, type OnboardingState } from "@/lib/api";
 import { initialsOf } from "@/lib/format";
+
+// 2-letter country code → display name for the address block (others fall back
+// to the raw code). Mirrors the mobile profile.
+const COUNTRY_NAMES: Record<string, string> = { US: "United States", PH: "Philippines", IN: "India" };
+
+function formatAddress(a: NonNullable<OnboardingState["user"]["address"]>): string {
+  const country = COUNTRY_NAMES[a.countryCode] ?? a.countryCode;
+  return [a.line1, a.line2, a.city, a.stateOrProvince, country, a.postalCode]
+    .filter(Boolean)
+    .join(", ")
+    .toUpperCase();
+}
 
 export function Profile() {
   const navigate = useNavigate();
@@ -36,13 +49,7 @@ export function Profile() {
 
   return (
     <Screen footer={<Button label="Log out" className="!bg-field !text-danger" onClick={logoutAndGo} />}>
-      <div className="mb-2 flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="text-[15px] text-accent" aria-label="Back">
-          ←
-        </button>
-        <span className="font-serif text-[18px] text-ink">Profile</span>
-        <span className="w-4" />
-      </div>
+      <ScreenHeader title="Profile" />
 
       <div className="mt-4 flex flex-col items-center gap-2">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-border text-[28px] font-bold text-ink-soft">
@@ -59,9 +66,11 @@ export function Profile() {
       {error ? <p className="mt-3 text-center text-sm text-danger">{error}</p> : null}
 
       <dl className="mt-6 rounded-card border border-border bg-surface px-4 shadow-card">
-        <Field label="Email" value={user?.email ?? "—"} />
         <Field label="Phone" value={user?.phoneE164 ?? "—"} />
-        <Field label="PIN" value={user?.pinSet ? "Set" : "Not set"} last />
+        <Field label="Email ID" value={user?.email ?? "—"} />
+        <Field label="PIN" value={user?.pinSet ? "Set" : "Not set"} last={!user?.address} />
+        {/* National ID is intentionally NOT shown — never stored (D23). */}
+        {user?.address ? <Field label="Address" value={formatAddress(user.address)} last /> : null}
       </dl>
     </Screen>
   );
@@ -69,9 +78,9 @@ export function Profile() {
 
 function Field({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
-    <div className={`flex items-center justify-between py-4 ${last ? "" : "border-b border-border"}`}>
-      <dt className="text-[14px] text-ink-soft">{label}</dt>
-      <dd className="max-w-[60%] truncate text-[14px] font-medium text-ink">{value}</dd>
+    <div className={`flex items-start justify-between gap-4 py-4 ${last ? "" : "border-b border-border"}`}>
+      <dt className="shrink-0 text-[14px] text-ink-soft">{label}</dt>
+      <dd className="max-w-[62%] break-words text-right text-[14px] font-medium text-ink">{value}</dd>
     </div>
   );
 }

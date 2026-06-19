@@ -95,28 +95,15 @@ export function RemitDetail() {
       <dl className="mt-6 rounded-card border border-border bg-surface p-1 shadow-card">
         <Row label="Status" value={remitStatusLabel(detail.status)} />
         <Row label="To" value={`${detail.destHandle ?? ""} (${remitRailLabel(detail.destRail)})`} />
+        {detail.fxRate ? (
+          <Row label="Exchange rate" value={`1 USD = ₱${Number(detail.fxRate).toFixed(2)}`} />
+        ) : null}
         {detail.amountPhp ? <Row label="They receive" value={formatPhp(detail.amountPhp)} /> : null}
         <Row label="You sent" value={formatUsdc(detail.amountUsdc)} />
         <Row label="Started" value={formatDateTime(detail.createdAt)} />
         {detail.completedAt ? <Row label="Completed" value={formatDateTime(detail.completedAt)} last /> : null}
       </dl>
-
-      {detail.timeline.length > 0 ? (
-        <div className="mt-6">
-          <h2 className="font-serif text-[18px] text-ink">Timeline</h2>
-          <ol className="mt-3 space-y-3">
-            {detail.timeline.map((s, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                <span>
-                  <span className="block text-[14px] text-ink">{s.description}</span>
-                  <span className="block text-[12px] text-ink-faint">{formatDateTime(s.postedAt)}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      ) : null}
+      {/* cont.80 item 4: Timeline section removed — not for end users. */}
     </Screen>
   );
 }

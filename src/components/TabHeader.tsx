@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { AccountAvatar } from "@/components/AccountAvatar";
 
-// Serif tab title (left) + the account avatar (right). `right` injects an optional
-// action just left of the avatar — mirrors the mobile TabHeader.
+// Bold sans tab title (left) + the account avatar (right). `right` injects an
+// optional action just left of the avatar — mirrors the mobile TabHeader
+// (FE/components/TabHeader.tsx: system sans, weight 700, -0.5 tracking).
 export function TabHeader({ title, right }: { title: string; right?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between pb-1">
-      <h1 className="font-serif text-[26px] text-ink">{title}</h1>
+    <div className="flex min-h-[44px] items-center justify-between pb-1">
+      <h1 className="font-sans text-[26px] font-bold tracking-[-0.5px] text-ink">{title}</h1>
       <div className="flex items-center gap-2">
         {right ?? null}
         <AccountAvatar />

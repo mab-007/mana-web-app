@@ -16,6 +16,10 @@ export function Welcome() {
       <p className="mb-1 text-center text-xs text-ink-faint">
         By continuing you agree to our Terms &amp; Privacy Notice.
       </p>
+      {/* Single entry point (matches mobile app/index.tsx): email + OTP is the same
+          for new and returning users — stepToRoute routes a fully-onboarded user to
+          /home and a partial user into onboarding, so no "I already have an account"
+          CTA is needed. */}
       <Button label="Get started" onClick={() => navigate("/login")} />
       {authenticated ? (
         <button
@@ -24,14 +28,7 @@ export function Welcome() {
         >
           Log out
         </button>
-      ) : (
-        <button
-          className="h-12 w-full text-sm font-semibold text-accent"
-          onClick={() => navigate("/login")}
-        >
-          I already have an account
-        </button>
-      )}
+      ) : null}
     </div>
   );
 

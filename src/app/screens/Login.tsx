@@ -2,6 +2,7 @@ import { useLoginWithEmail, usePrivy } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, ErrorText, Field, Screen } from "@/components/ui";
+import { CodeInput } from "@/components/CodeInput";
 import { api, ApiError } from "@/lib/api";
 import { stepToRoute } from "@/lib/onboarding";
 
@@ -43,11 +44,12 @@ export function Login() {
     }
   }
 
-  async function onVerify() {
+  async function onVerify(submitted: string = code) {
+    if (!/^\d{6}$/.test(submitted) || finishing) return;
     setError(null);
     setFinishing(true);
     try {
-      await loginWithCode({ code });
+      await loginWithCode({ code: submitted });
       // Authenticated — the Privy token is now available to the API client.
       const res = await api.signup({ email: email.trim(), deviceId: "web" });
       navigate(stepToRoute(res.user.onboardingStep), { replace: true });
@@ -63,6 +65,17 @@ export function Login() {
     }
   }
 
+  // Re-send the OTP and clear the entered digits (mirrors the mobile "Resend").
+  async function onResend() {
+    setError(null);
+    setCode("");
+    try {
+      await sendCode({ email: email.trim() });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't resend the code. Try again.");
+    }
+  }
+
   const footer =
     phase === "input" ? (
       <Button
@@ -72,7 +85,7 @@ export function Login() {
         loading={state.status === "sending-code"}
       />
     ) : (
-      <Button label="Verify" onClick={onVerify} disabled={!codeValid || busy} loading={busy} />
+      <Button label="Verify" onClick={() => onVerify()} disabled={!codeValid || busy} loading={busy} />
     );
 
   return (
@@ -106,18 +119,29 @@ export function Login() {
             <p className="mt-2 text-[15px] leading-6 text-ink-soft">
               Sent to {email.trim()}. It expires shortly.
             </p>
-            <input
-              className="mt-8 h-16 w-full rounded-card border border-border bg-field text-center text-3xl tracking-[12px] text-ink outline-none focus:border-ink"
-              value={code}
-              inputMode="numeric"
-              autoFocus
-              maxLength={6}
-              placeholder="••••••"
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && codeValid && !busy) onVerify();
-              }}
-            />
+            <div className="mt-8">
+              <CodeInput
+                length={6}
+                value={code}
+                onChange={(next) => {
+                  setError(null);
+                  setCode(next);
+                }}
+                align="center"
+                autoFocus
+                // Auto-verify the moment all 6 digits are in (parity with mobile).
+                onFilled={(next) => {
+                  if (!busy) onVerify(next);
+                }}
+              />
+            </div>
+            <button
+              onClick={onResend}
+              disabled={busy}
+              className="mt-6 block w-full text-center text-[14px] text-ink-soft disabled:opacity-40"
+            >
+              Didn't get it? <span className="font-semibold text-accent">Resend code</span>
+            </button>
           </>
         )}
         <ErrorText>{error}</ErrorText>

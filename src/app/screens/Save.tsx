@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { PassbookRow } from "@/components/PassbookRow";
 import { RichText } from "@/components/RichText";
+import { SaveBulletIcon } from "@/components/SaveBulletIcon";
 import { TabHeader } from "@/components/TabHeader";
 import { Button, Loader, Sheet, TabScreen } from "@/components/ui";
 import {
   api,
   ApiError,
   type OnboardingState,
+  type YieldPassbookEntry,
   type YieldStatusResponse,
 } from "@/lib/api";
 import { formatUsdc } from "@/lib/format";
@@ -27,10 +30,18 @@ export function Save() {
   const [error, setError] = useState<string | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
   const [legal, setLegal] = useState<OnboardingState["legal"] | null>(null);
+  // The 3 most-recent passbook entries, previewed on the home with a "View all" → full
+  // passbook screen. Fetched alongside status; only rendered once the user has opted in.
+  const [recent, setRecent] = useState<YieldPassbookEntry[]>([]);
 
   async function load() {
     try {
-      setStatus(await api.getYield());
+      const [s, passbook] = await Promise.all([
+        api.getYield(),
+        api.getYieldPassbook().catch(() => ({ entries: [] as YieldPassbookEntry[] })),
+      ]);
+      setStatus(s);
+      setRecent(passbook.entries.slice(0, 3));
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't load your savings.");
@@ -79,23 +90,12 @@ export function Save() {
   }
 
   const apyPct = status.apyLabel;
-  const { intro, home } = status.copy;
+  const { intro, home, info } = status.copy;
   const [balWhole, balCents] = splitAmount(status.currentValueMinor);
 
   return (
     <TabScreen>
-      <TabHeader
-        title="Save"
-        right={
-          <button
-            onClick={() => setInfoOpen(true)}
-            aria-label="How Save works"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[20px] text-ink-soft active:opacity-50"
-          >
-            ⓘ
-          </button>
-        }
-      />
+      <TabHeader title="Save" />
       {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
 
       {!status.eligible ? (
@@ -109,9 +109,9 @@ export function Save() {
             <p className="text-[12px] font-bold uppercase tracking-wider text-white/85">
               {home.walletLabel}
             </p>
-            <p className="mt-1 font-serif text-[46px] leading-[52px] text-white">
+            <p className="mt-1 font-sans text-[46px] font-extrabold leading-[52px] tracking-[-0.02em] text-white">
               {balWhole}
-              <span className="text-[26px] text-white/85">{balCents}</span>
+              <span className="text-[26px] font-extrabold text-white/85">{balCents}</span>
             </p>
             <div className="mt-1 flex items-center gap-1.5">
               <span className="h-[7px] w-[7px] rounded-full bg-white/90" />
@@ -128,7 +128,7 @@ export function Save() {
                 {home.addLabel}
               </button>
               <button
-                onClick={() => navigate("/save/amount?mode=withdraw")}
+                onClick={() => navigate("/save/withdraw")}
                 className="flex items-center justify-center gap-1.5 rounded-card bg-white/[0.18] py-3.5 text-[15px] font-semibold text-white active:opacity-70"
               >
                 <span aria-hidden className="text-[15px] leading-none">
@@ -161,6 +161,29 @@ export function Save() {
             </div>
           </div>
 
+          <div className="mt-4 rounded-2xl border border-border bg-surface px-5 py-2 shadow-card">
+            <div className="flex items-center justify-between pb-1 pt-2">
+              <p className="text-[15px] font-bold text-ink">Recent activity</p>
+              <button
+                onClick={() => navigate("/save/passbook")}
+                className="text-[14px] font-semibold text-accent active:opacity-50"
+              >
+                View all
+              </button>
+            </div>
+            {recent.length === 0 ? (
+              <p className="py-3 text-[14px] text-ink-faint">No Save activity yet.</p>
+            ) : (
+              recent.map((e) => (
+                <PassbookRow
+                  key={e.transactionId}
+                  entry={e}
+                  onClick={e.type === "interest" ? () => navigate(`/interest/${e.transactionId}`) : undefined}
+                />
+              ))
+            )}
+          </div>
+
           <button
             onClick={() => navigate("/card")}
             className="relative mt-6 block w-full rounded-2xl border border-border bg-surface p-5 pt-6 text-left shadow-card"
@@ -187,7 +210,16 @@ export function Save() {
         // ── Pre-opt-in intro card ("Open a Save wallet and earn N% APY") ──
         <>
           <div className="mt-4 rounded-2xl border border-border bg-surface px-5 py-7 shadow-card">
-            <p className="text-[18px] font-semibold text-ink">{intro.cardHeading}</p>
+            <div className="flex items-center gap-1">
+              <p className="text-[18px] font-semibold text-ink">{intro.cardHeading}</p>
+              <button
+                onClick={() => setInfoOpen(true)}
+                aria-label="How Save works"
+                className="text-[18px] leading-none text-ink-faint active:opacity-50"
+              >
+                ⓘ
+              </button>
+            </div>
             <div className="flex items-end">
               <span className="font-serif text-[92px] leading-[96px] text-success">{apyPct}</span>
               <span className="mb-3 font-serif text-[30px] text-success">{intro.apyUnit}</span>
@@ -195,9 +227,9 @@ export function Save() {
             <RichText text={intro.body} className="block text-[16px] leading-6 text-ink" />
             <div className="mt-4 flex flex-col gap-4">
               {intro.bullets.map((b, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <span className="mt-0.5 text-[18px] leading-none text-success" aria-hidden>
-                    ✓
+                <div key={i} className="flex items-center gap-3">
+                  <span className="flex w-7 shrink-0 justify-center">
+                    <SaveBulletIcon name={b.icon} size={28} />
                   </span>
                   <span className="flex-1 text-[15px] leading-[21px] text-ink">{b.text}</span>
                 </div>
@@ -211,22 +243,17 @@ export function Save() {
         </>
       )}
 
-      {/* "How Save works" — opened from the header info icon. */}
+      {/* "How Save works" — opened from the header info icon. Copy is BE-driven
+          (status.copy.info) so the counsel-sensitive yield framing changes via a
+          backend deploy, matching mobile. */}
       {infoOpen ? (
         <Sheet onClose={() => setInfoOpen(false)}>
-          <p className="font-serif text-[20px] text-ink">How Save works</p>
-          <p className="mt-3 text-[14px] leading-[21px] text-ink-soft">
-            Turn on Save and the dollars in your wallet earn yield automatically through a DeFi
-            protocol ({status.vaultName} on Base).
-          </p>
-          <p className="mt-3 text-[14px] leading-[21px] text-ink-soft">
-            Your money stays in your own wallet and stays liquid — send, spend, or withdraw anytime.
-            There's no lockup.
-          </p>
-          <p className="mt-3 text-[14px] leading-[21px] text-ink-soft">
-            The rate is variable (currently ~{apyPct}% APY) and isn't guaranteed. Yield is not a
-            bank deposit and isn't FDIC-insured.
-          </p>
+          <p className="font-serif text-[20px] text-ink">{info.title}</p>
+          {info.paragraphs.map((p, i) => (
+            <p key={i} className="mt-3 text-[14px] leading-[21px] text-ink-soft">
+              {p}
+            </p>
+          ))}
           {legal?.termsUrl ? (
             <a
               href={legal.termsUrl}
@@ -234,13 +261,13 @@ export function Save() {
               rel="noopener noreferrer"
               className="mt-2 inline-flex items-center gap-1 py-1 text-[15px] font-semibold text-accent"
             >
-              Terms &amp; pricing
+              {info.linkLabel}
               <span aria-hidden>↗</span>
             </a>
           ) : null}
           <div className="mt-4">
             <Button
-              label="Got it"
+              label={info.cta}
               className="!bg-transparent !text-ink"
               onClick={() => setInfoOpen(false)}
             />

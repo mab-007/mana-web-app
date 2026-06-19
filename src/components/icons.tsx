@@ -159,3 +159,24 @@ export function ChevronRight() {
     </svg>
   );
 }
+
+// Empty-state glyphs (mirror mobile receipt-outline / card-outline). Larger and
+// faint — shown above the empty-state message with no surrounding box.
+export function ReceiptIcon({ size = 44 }: { size?: number }) {
+  return (
+    <svg {...base} width={size} height={size} strokeWidth={1.5}>
+      <path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21V3Z" />
+      <line x1="8.5" y1="8" x2="15.5" y2="8" />
+      <line x1="8.5" y1="12" x2="15.5" y2="12" />
+    </svg>
+  );
+}
+
+export function CardOutlineIcon({ size = 40 }: { size?: number }) {
+  return (
+    <svg {...base} width={size} height={size} strokeWidth={1.5}>
+      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+      <line x1="2.5" y1="9.5" x2="21.5" y2="9.5" />
+    </svg>
+  );
+}

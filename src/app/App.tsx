@@ -8,6 +8,7 @@ import { Welcome } from "@/app/screens/Welcome";
 import { Resume } from "@/app/screens/Resume";
 import { Pin } from "@/app/screens/onboarding/Pin";
 import { Name } from "@/app/screens/onboarding/Name";
+import { Tos } from "@/app/screens/onboarding/Tos";
 import { Kyc } from "@/app/screens/onboarding/Kyc";
 import { KycVerify } from "@/app/screens/onboarding/KycVerify";
 import { KycStatus } from "@/app/screens/onboarding/KycStatus";
@@ -20,12 +21,17 @@ import { Card } from "@/app/screens/Card";
 import { Save } from "@/app/screens/Save";
 import { SaveAmount } from "@/app/screens/save/Amount";
 import { SaveResult } from "@/app/screens/save/Result";
+import { SaveWithdraw } from "@/app/screens/save/Withdraw";
+import { SavePassbook } from "@/app/screens/save/Passbook";
 import { Activity } from "@/app/screens/Activity";
 import { TxDetail } from "@/app/screens/TxDetail";
 import { RemitCompose } from "@/app/screens/RemitCompose";
 import { RemitDetail } from "@/app/screens/RemitDetail";
 import { More } from "@/app/screens/More";
 import { Profile } from "@/app/screens/Profile";
+import { About } from "@/app/screens/About";
+import { Passbook } from "@/app/screens/Passbook";
+import { InterestDetail } from "@/app/screens/InterestDetail";
 
 // Protected-route gate: until Privy resolves, hold; unauthenticated → /login.
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -43,9 +49,10 @@ export function App() {
       <Route path="/welcome" element={<Welcome />} />
       <Route path="/login" element={<Login />} />
 
-      {/* Onboarding funnel (pin → name → kyc → kyc-verify → kyc-status → done). */}
+      {/* Onboarding funnel (pin → name → tos → kyc → kyc-verify → kyc-status → done). */}
       <Route path="/onboarding/pin" element={<RequireAuth><Pin /></RequireAuth>} />
       <Route path="/onboarding/name" element={<RequireAuth><Name /></RequireAuth>} />
+      <Route path="/onboarding/tos" element={<RequireAuth><Tos /></RequireAuth>} />
       <Route path="/onboarding/kyc" element={<RequireAuth><Kyc /></RequireAuth>} />
       <Route path="/onboarding/kyc-verify" element={<RequireAuth><KycVerify /></RequireAuth>} />
       <Route path="/onboarding/kyc-status" element={<RequireAuth><KycStatus /></RequireAuth>} />
@@ -62,9 +69,14 @@ export function App() {
 
       {/* Full-screen routes off the tabs. */}
       <Route path="/tx/:id" element={<RequireAuth><TxDetail /></RequireAuth>} />
+      <Route path="/interest/:id" element={<RequireAuth><InterestDetail /></RequireAuth>} />
+      <Route path="/passbook" element={<RequireAuth><Passbook /></RequireAuth>} />
+      <Route path="/about" element={<RequireAuth><About /></RequireAuth>} />
       <Route path="/add-money" element={<RequireAuth><AddMoney /></RequireAuth>} />
       <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
       <Route path="/save/amount" element={<RequireAuth><SaveAmount /></RequireAuth>} />
+      <Route path="/save/withdraw" element={<RequireAuth><SaveWithdraw /></RequireAuth>} />
+      <Route path="/save/passbook" element={<RequireAuth><SavePassbook /></RequireAuth>} />
       <Route path="/save/result" element={<RequireAuth><SaveResult /></RequireAuth>} />
       <Route path="/remit/compose" element={<RequireAuth><RemitCompose /></RequireAuth>} />
       <Route path="/remit/:id" element={<RequireAuth><RemitDetail /></RequireAuth>} />

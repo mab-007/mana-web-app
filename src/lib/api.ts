@@ -53,6 +53,14 @@ export interface OnboardingState {
     dateOfBirth: string | null;
     pinSet: boolean;
     biometricEnrolled: boolean;
+    address: {
+      line1: string;
+      line2: string | null;
+      city: string;
+      stateOrProvince: string;
+      postalCode: string;
+      countryCode: string;
+    } | null;
   };
   tos: { accepted: boolean; acceptedVersion: string | null };
   legal: { version: string; termsUrl: string; privacyUrl: string };
@@ -202,9 +210,9 @@ export interface CardOfferResponse {
   benefits: CardBenefitRow[];
   ctaLabel: string;
   disclosure: string;
-  acknowledgements: string[]; // bullet pointers shown above the checkbox (markdown)
-  consent: CardConsent; // the single "I agree to the T&C" checkbox that gates the CTA
-  consents: CardConsent[]; // deprecated back-compat (= [consent]); use `consent`
+  consents: CardConsent[]; // D94: individual checkboxes in the T&C modal (use this)
+  consent: CardConsent; // DEPRECATED back-compat (= consents[0]); single-checkbox clients
+  acknowledgements: string[]; // DEPRECATED back-compat (= consents.map(text)); bullet clients
   tosVersion: string; // recorded at issue (D85)
 }
 // Live USD→PHP rate (GET /v1/fx/usd-php → Transfi).
@@ -372,11 +380,18 @@ export interface YieldResultCopy {
   doneCta: string;
   retryCta: string;
 }
+export interface YieldInfoCopy {
+  title: string;
+  paragraphs: string[];
+  linkLabel: string;
+  cta: string;
+}
 export interface YieldCopy {
   intro: YieldIntroCopy;
   home: YieldHomeCopy;
   amount: YieldAmountCopy;
   result: YieldResultCopy;
+  info: YieldInfoCopy;
 }
 export interface YieldStatusResponse {
   enabled: boolean; // counsel gate — false ⇒ render "coming soon"
@@ -399,9 +414,16 @@ export interface YieldStatusResponse {
 }
 export interface YieldMoveResponse {
   transactionId: string;
+  amountMinor: string; // deposited amount, or the withdrawal payout (floored to cents)
   principalMinor: string;
   currentValueMinor: string;
   status: string; // active | closed
+}
+export interface YieldPassbookEntry {
+  transactionId: string;
+  type: "deposit" | "interest" | "withdraw";
+  amountMinor: string;
+  at: string; // ISO timestamp
 }
 
 // ─── Remit (BE: src/routes/remit.ts) ─────────────────────────
@@ -473,6 +495,7 @@ export interface RemitHistoryItem {
 }
 export interface RemitDetail extends RemitHistoryItem {
   quoteId: string | null;
+  fxRate: string | null; // USD→PHP effective rate for this transfer
   fees: { transfiFeeUsdc: string; ourFeeUsdc: string } | null;
   timeline: { description: string; postedAt: string }[];
 }
@@ -629,13 +652,16 @@ export const api = {
       auth: true,
       idempotencyKey,
     }),
-  yieldWithdraw: (args: { amountMinor?: string; all?: boolean }, idempotencyKey: string) =>
+  // D105: withdraw is full-only (no amount) — pays the entire Save balance back.
+  yieldWithdraw: (idempotencyKey: string) =>
     request<YieldMoveResponse>("/v1/yield/withdraw", {
       method: "POST",
-      body: args,
+      body: {},
       auth: true,
       idempotencyKey,
     }),
+  getYieldPassbook: () =>
+    request<{ entries: YieldPassbookEntry[] }>("/v1/yield/passbook", { auth: true }),
 
   // ── Remit ──
   getDestinations: () =>
