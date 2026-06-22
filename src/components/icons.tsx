@@ -152,6 +152,46 @@ export function GearIcon() {
   );
 }
 
+export function HelpIcon() {
+  return (
+    <svg {...base}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2-2.4 3.8" />
+      <line x1="12" y1="17" x2="12" y2="17" />
+    </svg>
+  );
+}
+
+export function DocIcon() {
+  return (
+    <svg {...base}>
+      <path d="M6 3h8l4 4v14H6V3Z" />
+      <path d="M14 3v4h4" />
+      <line x1="9" y1="12" x2="15" y2="12" />
+      <line x1="9" y1="16" x2="15" y2="16" />
+    </svg>
+  );
+}
+
+export function LockIcon() {
+  return (
+    <svg {...base}>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
+export function LogoutIcon() {
+  return (
+    <svg {...base}>
+      <path d="M14 4H6v16h8" />
+      <path d="M10 12h10" />
+      <path d="m17 8 4 4-4 4" />
+    </svg>
+  );
+}
+
 export function ChevronRight() {
   return (
     <svg {...base} width={18} height={18}>

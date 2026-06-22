@@ -93,6 +93,10 @@ export function Card() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // cont.87 addendum: personalize the pre-issuance card illustration with the user's
+  // real legal name (UPPER), "YOUR NAME" until it's known — instead of a hardcoded
+  // sample (parity with mobile).
+  const [illustrationName, setIllustrationName] = useState("YOUR NAME");
 
   // PIN-gated flow (reveal OR replace).
   const [pinIntent, setPinIntent] = useState<"reveal" | "replace" | null>(null);
@@ -132,6 +136,16 @@ export function Card() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    api
+      .getState()
+      .then((s) => {
+        const n = [s.user.legalFirstName, s.user.legalLastName].filter(Boolean).join(" ").trim();
+        if (n) setIllustrationName(n.toUpperCase());
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -331,7 +345,7 @@ export function Card() {
         {canIssue && offer ? (
           <>
             <div className="mt-4">
-              <CardFront number="4218  5520  8841  0274" name="MARIA SANTOS" validThru="08/29" />
+              <CardFront number="4218  5520  8841  0274" name={illustrationName} validThru="08/29" />
             </div>
 
             {offer.heading ? (
@@ -380,7 +394,7 @@ export function Card() {
           <Loader label="Loading your card…" />
         ) : (
           <div className="mt-10 flex flex-col items-center gap-3 text-center">
-            <CardFront number="4218  5520  8841  0274" name="MARIA SANTOS" validThru="08/29" dimmed />
+            <CardFront number="4218  5520  8841  0274" name={illustrationName} validThru="08/29" dimmed />
             <h2 className="mt-2 font-serif text-[22px] text-ink">Card on the way</h2>
             <p className="max-w-xs text-[15px] leading-6 text-ink-soft">
               Your card unlocks as soon as your account is fully verified.

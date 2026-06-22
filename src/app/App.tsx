@@ -14,6 +14,7 @@ import { KycVerify } from "@/app/screens/onboarding/KycVerify";
 import { KycStatus } from "@/app/screens/onboarding/KycStatus";
 import { Done } from "@/app/screens/onboarding/Done";
 import { AddMoney } from "@/app/screens/AddMoney";
+import { AddMoneyAch } from "@/app/screens/AddMoneyAch";
 import { Account } from "@/app/screens/Account";
 import { TabLayout } from "@/app/screens/TabLayout";
 import { Send } from "@/app/screens/Send";
@@ -28,6 +29,7 @@ import { TxDetail } from "@/app/screens/TxDetail";
 import { RemitCompose } from "@/app/screens/RemitCompose";
 import { RemitDetail } from "@/app/screens/RemitDetail";
 import { More } from "@/app/screens/More";
+import { Invite } from "@/app/screens/Invite";
 import { Profile } from "@/app/screens/Profile";
 import { About } from "@/app/screens/About";
 import { Passbook } from "@/app/screens/Passbook";
@@ -41,13 +43,23 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// Guest-only gate: the pre-auth screens (/welcome, /login). An authenticated user
+// is bounced to "/" (Resume), which resolves their correct onboarding/home step —
+// so a logged-in user can never sit on /welcome or /login.
+function RequireGuest({ children }: { children: ReactNode }) {
+  const { ready, authenticated } = usePrivy();
+  if (!ready) return <Spinner />;
+  if (authenticated) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 export function App() {
   return (
     <Routes>
       {/* Entry gate — resolve where an authenticated user should resume. */}
       <Route path="/" element={<Resume />} />
-      <Route path="/welcome" element={<Welcome />} />
-      <Route path="/login" element={<Login />} />
+      <Route path="/welcome" element={<RequireGuest><Welcome /></RequireGuest>} />
+      <Route path="/login" element={<RequireGuest><Login /></RequireGuest>} />
 
       {/* Onboarding funnel (pin → name → tos → kyc → kyc-verify → kyc-status → done). */}
       <Route path="/onboarding/pin" element={<RequireAuth><Pin /></RequireAuth>} />
@@ -73,6 +85,7 @@ export function App() {
       <Route path="/passbook" element={<RequireAuth><Passbook /></RequireAuth>} />
       <Route path="/about" element={<RequireAuth><About /></RequireAuth>} />
       <Route path="/add-money" element={<RequireAuth><AddMoney /></RequireAuth>} />
+      <Route path="/add-money-ach" element={<RequireAuth><AddMoneyAch /></RequireAuth>} />
       <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
       <Route path="/save/amount" element={<RequireAuth><SaveAmount /></RequireAuth>} />
       <Route path="/save/withdraw" element={<RequireAuth><SaveWithdraw /></RequireAuth>} />
@@ -81,6 +94,7 @@ export function App() {
       <Route path="/remit/compose" element={<RequireAuth><RemitCompose /></RequireAuth>} />
       <Route path="/remit/:id" element={<RequireAuth><RemitDetail /></RequireAuth>} />
       <Route path="/more" element={<RequireAuth><More /></RequireAuth>} />
+      <Route path="/invite" element={<RequireAuth><Invite /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

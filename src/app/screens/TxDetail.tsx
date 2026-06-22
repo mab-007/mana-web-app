@@ -73,7 +73,7 @@ export function TxDetail() {
 
       <div className="mt-6 flex flex-col items-center text-center">
         <p className="text-[13px] text-ink-soft">{txDisplayName(t)}</p>
-        <p className={`mt-1 font-serif text-[40px] leading-none ${credit ? "text-success" : "text-ink"}`}>
+        <p className={`mt-1 font-sans text-[40px] font-extrabold tracking-[-0.02em] leading-none ${credit ? "text-success" : "text-ink"}`}>
           {credit ? "+" : "-"}
           {formatUsdc(t.grossAmount)}
         </p>

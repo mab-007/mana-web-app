@@ -2,6 +2,7 @@
 // (BE: src/routes/onboarding.ts). When the API stabilizes, switch to types
 // generated from the OpenAPI doc at /docs instead of hand-maintaining these.
 import { authHeader } from "./auth";
+import { appVersion } from "./version";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -103,6 +104,45 @@ export interface StartKycBody {
   address: KycAddress;
 }
 
+export interface Country {
+  iso: string; // ISO 3166-1 alpha-2
+  name: string;
+  dial: string; // calling code WITHOUT the leading "+"
+  flag: string; // emoji flag
+}
+
+// Phone-country picker source of truth (mirror of mobile FE/lib/api.ts). Dial codes
+// are UNIQUE within this list (one entry per dial, e.g. +1 = US only) so a dial →
+// country lookup is unambiguous. US first = the default.
+export const PHONE_COUNTRIES: Country[] = [
+  { iso: "US", name: "United States", dial: "1", flag: "🇺🇸" },
+  { iso: "PH", name: "Philippines", dial: "63", flag: "🇵🇭" },
+  { iso: "MX", name: "Mexico", dial: "52", flag: "🇲🇽" },
+  { iso: "IN", name: "India", dial: "91", flag: "🇮🇳" },
+  { iso: "GB", name: "United Kingdom", dial: "44", flag: "🇬🇧" },
+  { iso: "AU", name: "Australia", dial: "61", flag: "🇦🇺" },
+  { iso: "SG", name: "Singapore", dial: "65", flag: "🇸🇬" },
+  { iso: "HK", name: "Hong Kong", dial: "852", flag: "🇭🇰" },
+  { iso: "AE", name: "United Arab Emirates", dial: "971", flag: "🇦🇪" },
+  { iso: "SA", name: "Saudi Arabia", dial: "966", flag: "🇸🇦" },
+  { iso: "JP", name: "Japan", dial: "81", flag: "🇯🇵" },
+  { iso: "KR", name: "South Korea", dial: "82", flag: "🇰🇷" },
+  { iso: "DE", name: "Germany", dial: "49", flag: "🇩🇪" },
+  { iso: "FR", name: "France", dial: "33", flag: "🇫🇷" },
+  { iso: "ES", name: "Spain", dial: "34", flag: "🇪🇸" },
+  { iso: "IT", name: "Italy", dial: "39", flag: "🇮🇹" },
+  { iso: "BR", name: "Brazil", dial: "55", flag: "🇧🇷" },
+  { iso: "NG", name: "Nigeria", dial: "234", flag: "🇳🇬" },
+  { iso: "PK", name: "Pakistan", dial: "92", flag: "🇵🇰" },
+  { iso: "BD", name: "Bangladesh", dial: "880", flag: "🇧🇩" },
+  { iso: "VN", name: "Vietnam", dial: "84", flag: "🇻🇳" },
+  { iso: "ID", name: "Indonesia", dial: "62", flag: "🇮🇩" },
+];
+
+export function phoneCountry(code: string): Country {
+  return PHONE_COUNTRIES.find((c) => c.dial === code) ?? PHONE_COUNTRIES[0]!;
+}
+
 // Non-crypto UUID v4. Good enough for an idempotency key (needs uniqueness, not
 // secrecy) and avoids the RN `crypto.getRandomValues` polyfill footgun.
 export function newIdempotencyKey(): string {
@@ -124,10 +164,24 @@ export class ApiError extends Error {
     message: string,
     readonly httpStatus: number,
     readonly requestId?: string,
+    // Fine-grained, user-facing code from the BE error contract (D113). The BE
+    // already resolves `message` to safe copy; userCode lets the FE branch on the
+    // specific reason (e.g. show a retry vs. a steer-elsewhere) without parsing text.
+    readonly userCode?: string,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+// FE choke helper (D113 parity): the only place outside ApiError that turns a
+// thrown value into user-facing text. ApiError.message is already sanitized by the
+// BE, so it's safe to surface; anything else (e.g. a raw vendor/Privy error) is
+// NOT shown — it falls back to the generic copy so internal text never leaks.
+export const GENERIC_ERROR = "Something went wrong. Please try again after some time.";
+export function errorText(e: unknown, fallback: string = GENERIC_ERROR): string {
+  if (e instanceof ApiError && e.message) return e.message;
+  return fallback;
 }
 
 async function request<T>(
@@ -142,6 +196,10 @@ async function request<T>(
     // ngrok-free injects an HTML interstitial for requests it deems "browser-like";
     // this header skips it so JSON responses come back clean. Harmless on any host.
     "ngrok-skip-browser-warning": "true",
+    // Client-version telemetry seam (D110). Web has no native build number, so it
+    // sends version-only + platform "web". The BE parses these LOG-ONLY (fail-open).
+    "x-app-version": appVersion,
+    "x-platform": "web",
   };
   if (opts.body !== undefined) headers["content-type"] = "application/json";
   if (opts.auth) headers.authorization = await authHeader();
@@ -172,6 +230,7 @@ async function request<T>(
       err.message ?? `Request failed (${res.status})`,
       res.status,
       err.requestId,
+      err.userCode,
     );
   }
   return json as T;
@@ -280,6 +339,21 @@ export interface FundInMethod {
 export interface FundInMethodsResponse {
   userId: string;
   methods: FundInMethod[];
+}
+// BE-driven add-money picker tiles (D111: GET /v1/fund-in/options). The FE renders
+// exactly what this returns (copy included); which tiles ship is a BE feature flag,
+// so a method is shown/hidden by config with no app release. `icon` is an Ionicons
+// glyph name (mobile owns the glyph set); web maps it to its own SVG icon set.
+export interface FundInOption {
+  key: string;
+  title: string;
+  subtitle: string;
+  badge: string | null;
+  icon: string;
+  target: string; // route the tile navigates to
+}
+export interface FundInOptionsResponse {
+  options: FundInOption[];
 }
 export interface AchAccountResponse {
   achAccount: {
@@ -629,6 +703,7 @@ export const api = {
 
   // ── Fund-in ──
   getFundInMethods: () => request<FundInMethodsResponse>("/v1/fund-in/methods", { auth: true }),
+  getFundInOptions: () => request<FundInOptionsResponse>("/v1/fund-in/options", { auth: true }),
   getFundInAccount: () => request<AchAccountResponse>("/v1/fund-in/account", { auth: true }),
   getWalletAddress: () => request<WalletAddressResponse>("/v1/fund-in/wallet-address", { auth: true }),
   getFundInLimits: () => request<LimitsBlock>("/v1/fund-in/limits", { auth: true }),

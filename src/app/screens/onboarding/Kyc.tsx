@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, ErrorText, Field, Screen } from "@/components/ui";
-import { api, ApiError, newIdempotencyKey, type StartKycBody } from "@/lib/api";
+import { api, ApiError, newIdempotencyKey, PHONE_COUNTRIES, type StartKycBody } from "@/lib/api";
 
 // NOTE: placeholder enums matching what Rain accepted in sandbox. Replace with
 // Rain's official SOC occupation / salary-band lists before prod.
@@ -53,6 +53,7 @@ export function Kyc() {
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [countryCode, setCountryCode] = useState("PH"); // residence country (drives Rain countryCode + countryOfIssue); defaults to Philippines
 
   // Pre-fill email from the account (Rain requires one; B1).
   useEffect(() => {
@@ -64,11 +65,27 @@ export function Kyc() {
       .catch(() => {});
   }, []);
 
+  // Residence country drives every country-specific rule. US keeps the strict
+  // SSN/2-letter-state/5-digit-ZIP shape; non-US mirrors the BE's relaxed contract
+  // (national ID 4–20 alphanumeric, free-text province, free-form postal).
+  const selectedCountry = PHONE_COUNTRIES.find((c) => c.iso === countryCode) ?? PHONE_COUNTRIES[1]!;
+  const isUS = countryCode === "US";
+
   const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
   const phoneValid = /^\d{4,15}$/.test(phoneNumber);
-  const ssnValid = /^\d{9}$/.test(ssn);
-  const addressValid = Boolean(line1 && city && region.length === 2 && /^\d{5}$/.test(postalCode));
-  const formValid = emailValid && phoneValid && ssnValid && addressValid;
+  const nationalIdValid = isUS ? /^\d{9}$/.test(ssn) : /^[A-Za-z0-9]{4,20}$/.test(ssn);
+  const regionValid = isUS ? region.length === 2 : region.trim().length >= 1;
+  const postalValid = isUS ? /^\d{5}$/.test(postalCode) : postalCode.trim().length >= 1;
+  const addressValid = Boolean(line1 && city && regionValid && postalValid);
+  const formValid = emailValid && phoneValid && nationalIdValid && addressValid;
+
+  // Formats differ by country — clear values entered under the old country's rules.
+  function onCountryChange(iso: string) {
+    setCountryCode(iso);
+    setSsn("");
+    setRegion("");
+    setPostalCode("");
+  }
 
   async function onSubmit() {
     if (!formValid) return;
@@ -90,8 +107,8 @@ export function Kyc() {
         city,
         region,
         postalCode,
-        countryCode: "US",
-        country: "United States",
+        countryCode,
+        country: selectedCountry.name,
       },
     };
     try {
@@ -146,12 +163,20 @@ export function Kyc() {
             <div>
               <span className="mb-1 block text-[13px] text-ink-soft">Mobile number</span>
               <div className="flex gap-2">
-                <input
-                  className="h-[52px] w-16 rounded-card border border-border bg-field text-center text-base text-ink outline-none focus:border-ink"
+                {/* Country picker: flag + dial code, defaults to US. Sets the phone
+                    dial prefix; the web KYC address stays US-only (rebuild deferred). */}
+                <select
+                  className="h-[52px] w-[112px] shrink-0 rounded-card border border-border bg-field px-2 text-base text-ink outline-none focus:border-ink"
                   value={phoneCountryCode}
-                  inputMode="numeric"
-                  onChange={(e) => setPhoneCountryCode(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                />
+                  onChange={(e) => setPhoneCountryCode(e.target.value)}
+                  aria-label="Country code"
+                >
+                  {PHONE_COUNTRIES.map((c) => (
+                    <option key={c.iso} value={c.dial}>
+                      {c.flag} +{c.dial}
+                    </option>
+                  ))}
+                </select>
                 <input
                   className="h-[52px] flex-1 rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
                   value={phoneNumber}
@@ -168,11 +193,17 @@ export function Kyc() {
             <div>
               <Field
                 label="National ID"
-                inputMode="numeric"
+                inputMode={isUS ? "numeric" : "text"}
                 autoComplete="off"
                 value={ssn}
-                onChange={(e) => setSsn(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                placeholder="9-digit National ID"
+                onChange={(e) =>
+                  setSsn(
+                    isUS
+                      ? e.target.value.replace(/\D/g, "").slice(0, 9)
+                      : e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 20),
+                  )
+                }
+                placeholder={isUS ? "9-digit National ID (SSN)" : "National ID or passport no."}
                 type="password"
               />
               <p className="mt-1 text-[12px] text-ink-faint">
@@ -203,28 +234,69 @@ export function Kyc() {
 
           <section className="space-y-3 rounded-card border border-border bg-surface p-4 shadow-card">
             <h2 className="font-serif text-[18px] text-ink">Where do you live?</h2>
-            <Field label="Residential address" value={line1} onChange={(e) => setLine1(e.target.value)} placeholder="Street address" />
-            <Field value={line2} onChange={(e) => setLine2(e.target.value)} placeholder="Apt, suite (optional)" />
-            <div className="flex gap-2">
-              <input
-                className="h-[52px] flex-1 rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="City"
-              />
-              <input
-                className="h-[52px] w-20 rounded-card border border-border bg-field text-center text-base uppercase text-ink outline-none focus:border-ink"
-                value={region}
-                onChange={(e) => setRegion(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2))}
-                placeholder="TX"
-              />
+            <div>
+              <span className="mb-1 block text-[13px] text-ink-soft">Country</span>
+              <select
+                className={SELECT_CLASS}
+                value={countryCode}
+                onChange={(e) => onCountryChange(e.target.value)}
+                aria-label="Country of residence"
+              >
+                {PHONE_COUNTRIES.map((c) => (
+                  <option key={c.iso} value={c.iso}>
+                    {c.flag} {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
+            <Field label="Residential address" value={line1} onChange={(e) => setLine1(e.target.value)} placeholder="Street address" />
+            <Field value={line2} onChange={(e) => setLine2(e.target.value)} placeholder="Apt, suite, subdivision (optional)" />
+            {isUS ? (
+              <div className="flex gap-2">
+                <input
+                  className="h-[52px] flex-1 rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="City"
+                />
+                <input
+                  className="h-[52px] w-20 rounded-card border border-border bg-field text-center text-base uppercase text-ink outline-none focus:border-ink"
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2))}
+                  placeholder="State"
+                  title="2-letter state code (e.g. TX)"
+                  aria-label="State"
+                />
+              </div>
+            ) : (
+              <>
+                <input
+                  className="h-[52px] w-full rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="City"
+                />
+                <input
+                  className="h-[52px] w-full rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value.slice(0, 120))}
+                  placeholder="State / Province"
+                  aria-label="State or province"
+                />
+              </>
+            )}
             <input
               className="h-[52px] w-full rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
               value={postalCode}
-              inputMode="numeric"
-              onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
-              placeholder="ZIP code"
+              inputMode={isUS ? "numeric" : "text"}
+              onChange={(e) =>
+                setPostalCode(
+                  isUS
+                    ? e.target.value.replace(/\D/g, "").slice(0, 5)
+                    : e.target.value.replace(/[^A-Za-z0-9 -]/g, "").slice(0, 12),
+                )
+              }
+              placeholder={isUS ? "ZIP code" : "Postal code"}
             />
           </section>
         </div>

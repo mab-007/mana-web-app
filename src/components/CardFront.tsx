@@ -110,7 +110,16 @@ export function CardFront({
             {`CVC  ${cvc}`}
           </text>
         ) : null}
-        <text x={60} y={492} fontWeight="500" fontSize={26} fill="#FFFFFF" opacity={0.96}>
+        {/* Length-scale the name so a long legal name still fits the card width
+            (parity with mobile FE/components/CardFront.tsx). */}
+        <text
+          x={60}
+          y={492}
+          fontWeight="500"
+          fontSize={name.length <= 28 ? 26 : Math.max(16, Math.floor((26 * 28) / name.length))}
+          fill="#FFFFFF"
+          opacity={0.96}
+        >
           {name}
         </text>
 

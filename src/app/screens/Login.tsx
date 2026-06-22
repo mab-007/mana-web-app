@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, ErrorText, Field, Screen } from "@/components/ui";
 import { CodeInput } from "@/components/CodeInput";
-import { api, ApiError } from "@/lib/api";
+import { api, errorText } from "@/lib/api";
 import { stepToRoute } from "@/lib/onboarding";
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -40,7 +40,8 @@ export function Login() {
       await sendCode({ email: email.trim() });
       setPhase("code");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't send the code. Try again.");
+      // D113: never surface a raw Privy error string — use safe copy.
+      setError(errorText(e, "Couldn't send the code. Check the address and try again."));
     }
   }
 
@@ -55,13 +56,9 @@ export function Login() {
       navigate(stepToRoute(res.user.onboardingStep), { replace: true });
     } catch (e) {
       setFinishing(false);
-      setError(
-        e instanceof ApiError
-          ? e.message
-          : e instanceof Error
-            ? e.message
-            : "That code didn't work. Try again.",
-      );
+      // ApiError.message is BE-sanitized (safe); a raw Privy verify error falls back
+      // to friendly copy via errorText (D113).
+      setError(errorText(e, "That code didn't work. Try again."));
     }
   }
 
@@ -72,7 +69,7 @@ export function Login() {
     try {
       await sendCode({ email: email.trim() });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't resend the code. Try again.");
+      setError(errorText(e, "Couldn't resend the code. Try again."));
     }
   }
 
