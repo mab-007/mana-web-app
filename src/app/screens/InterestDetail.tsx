@@ -58,7 +58,7 @@ export function InterestDetail() {
           ↗
         </div>
         <p className="mt-4 text-[14px] text-ink-soft">Interest earned</p>
-        <p className="mt-1 font-serif text-[44px] leading-none text-success">+{formatUsdc(t.grossAmount)}</p>
+        <p className="mt-1 font-sans text-[44px] font-extrabold tracking-[-0.02em] leading-none text-success">+{formatUsdc(t.grossAmount)}</p>
         <p className="mt-3 text-[17px] text-ink">{period}</p>
         <p className="mt-0.5 text-[13px] text-ink-faint">{formatDateTime(t.initiatedAt)}</p>
       </div>

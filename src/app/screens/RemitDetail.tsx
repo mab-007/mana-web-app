@@ -78,7 +78,7 @@ export function RemitDetail() {
           {justSent && detail.status !== "failed" ? "Money on the way!" : v.title}
         </h1>
         {detail.amountPhp ? (
-          <p className="mt-1 font-serif text-[34px] leading-none text-ink">{formatPhp(detail.amountPhp)}</p>
+          <p className="mt-1 font-sans text-[34px] font-extrabold tracking-[-0.02em] leading-none text-ink">{formatPhp(detail.amountPhp)}</p>
         ) : null}
         <p className="mt-2 text-[14px] text-ink-soft">
           {formatUsdc(detail.amountUsdc)} sent

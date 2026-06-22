@@ -202,7 +202,7 @@ export function RemitCompose() {
 
         <div className="mt-5 flex flex-col items-center gap-2 rounded-card border border-border bg-surface px-6 py-7">
           <span className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">Recipient receives</span>
-          <span className="font-serif text-[44px] leading-none text-ink">{phpLabel}</span>
+          <span className="font-sans text-[44px] font-extrabold tracking-[-0.02em] leading-none text-ink">{phpLabel}</span>
         </div>
 
         <dl className="mt-5 rounded-card border border-border bg-surface px-4">
@@ -337,9 +337,9 @@ export function RemitCompose() {
                 overBalance ? "border-danger" : "border-border"
               }`}
             >
-              <span className="font-serif text-[28px] text-ink-soft">$</span>
+              <span className="font-sans text-[28px] font-extrabold tracking-[-0.02em] text-ink-soft">$</span>
               <input
-                className="w-full bg-transparent py-3 font-serif text-[28px] text-ink outline-none placeholder:text-ink-faint"
+                className="w-full bg-transparent py-3 font-sans text-[28px] font-extrabold tracking-[-0.02em] text-ink outline-none placeholder:text-ink-faint"
                 value={amount}
                 inputMode="decimal"
                 onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}

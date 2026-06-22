@@ -85,8 +85,8 @@ export function SaveAmount() {
 
       <div className="mt-6 flex flex-col items-center gap-2">
         <p className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">{sourceLabel}</p>
-        <p className={`mt-2 font-serif text-[64px] leading-none ${amount ? "text-ink" : "text-ink-faint"}`}>
-          <span className="font-serif text-[40px]">$</span>
+        <p className={`mt-2 font-sans text-[64px] font-extrabold tracking-[-0.02em] leading-none ${amount ? "text-ink" : "text-ink-faint"}`}>
+          <span className="font-sans text-[40px]">$</span>
           {amount || "0"}
         </p>
         <p className={`text-[13px] ${overBalance ? "text-danger" : "text-ink-soft"}`}>

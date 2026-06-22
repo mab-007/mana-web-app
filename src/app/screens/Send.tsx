@@ -2,45 +2,35 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { NumericKeypad } from "@/components/NumericKeypad";
 import { TabHeader } from "@/components/TabHeader";
-import { Button, Loader, Sheet } from "@/components/ui";
-import { api, ApiError, type BalanceResponse, type RemitDestination, type RemitHistoryItem } from "@/lib/api";
-import { dollarsToMinor, formatDate, formatUsdc, remitRailLabel, remitStatusLabel } from "@/lib/format";
+import { Button, Loader } from "@/components/ui";
+import { api, ApiError, type BalanceResponse, type RemitDestination } from "@/lib/api";
+import { dollarsToMinor, formatUsdc } from "@/lib/format";
 
 const GATE_COPY: Record<string, string> = {
   capability_remit_disabled: "Finish identity verification to send money home.",
   account_frozen: "Your account is on hold. Contact support to send money.",
 };
 
-function statusTone(status: string): string {
-  if (status === "completed") return "text-success";
-  if (status === "failed" || status === "reversed") return "text-danger";
-  return "text-ink-soft";
-}
-
 // Send (USDC→PHP remit) landing — cash-app keypad amount entry, mirroring the
-// mobile Send tab. Eligibility gate → big serif amount + keypad → Send CTA, with
-// a recent-transfers bottom sheet behind the header clock button.
+// mobile Send tab. Eligibility gate → big amount + keypad → Send CTA. (Recent
+// transfers live on the Activity tab — no per-screen history sheet here.)
 export function Send() {
   const navigate = useNavigate();
   const [destinations, setDestinations] = useState<RemitDestination[] | null>(null);
-  const [history, setHistory] = useState<RemitHistoryItem[]>([]);
   const [balance, setBalance] = useState<BalanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Reset on mount — web has no useFocusEffect, so a fresh entry starts at "".
   const [amount, setAmount] = useState("");
-  const [recentOpen, setRecentOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const [dests, hist, bal] = await Promise.all([
+        const [dests, bal] = await Promise.all([
           api.getDestinations(),
-          api.getRemitHistory({ limit: 20 }),
           api.getBalance().catch(() => null),
         ]);
         setDestinations(dests.destinations);
-        setHistory(hist.remits);
         if (bal) setBalance(bal);
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "Couldn't load your transfers.");
@@ -97,25 +87,13 @@ export function Send() {
   // ── Eligible: keypad amount entry ──
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-col px-6 pt-4">
-      <TabHeader
-        title="Send"
-        right={
-          <button
-            type="button"
-            onClick={() => setRecentOpen(true)}
-            aria-label="Recent transfers"
-            className="flex h-11 w-11 items-center justify-center text-[22px] text-ink-soft transition-opacity active:opacity-50"
-          >
-            🕘
-          </button>
-        }
-      />
+      <TabHeader title="Send" />
 
       {error ? <p className="text-center text-[13px] text-danger">{error}</p> : null}
 
       <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
         <p
-          className={`font-serif text-[72px] leading-none ${
+          className={`font-sans text-[72px] font-extrabold tracking-[-0.02em] leading-none ${
             overBalance ? "text-danger" : minor > 0n ? "text-ink" : "text-ink-faint"
           }`}
         >
@@ -141,62 +119,6 @@ export function Send() {
       <div className="shrink-0 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3">
         <Button label="Send" onClick={send} disabled={!canSend} />
       </div>
-
-      {recentOpen ? (
-        <Sheet onClose={() => setRecentOpen(false)}>
-          <h2 className="font-serif text-[20px] text-ink">Recent transfers</h2>
-          {history.length === 0 ? (
-            <p className="mt-3 text-[14px] text-ink-soft">
-              No transfers yet — your sent money will show up here.
-            </p>
-          ) : (
-            <ul className="mt-3 max-h-[60vh] space-y-2 overflow-y-auto">
-              {history.map((h) => {
-                const inbound = h.status === "failed" || h.status === "reversed";
-                return (
-                  <li key={h.transactionId}>
-                    <button
-                      onClick={() => {
-                        setRecentOpen(false);
-                        navigate(`/remit/${h.transactionId}`);
-                      }}
-                      className="flex w-full items-center gap-3 rounded-card border border-border bg-surface p-3 text-left"
-                    >
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-bg text-lg text-accent">
-                        {inbound ? "↓" : "↑"}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-medium text-ink">
-                          {h.destRecipientName ?? h.destHandle ?? remitRailLabel(h.destRail)}
-                        </span>
-                        <span className="block text-[12px] text-ink-faint">
-                          {remitRailLabel(h.destRail)} · {formatDate(h.createdAt)}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-right">
-                        <span className="block text-[15px] font-semibold text-ink">
-                          {formatUsdc(h.amountUsdc)}
-                        </span>
-                        <span className={`block text-[12px] ${statusTone(h.status)}`}>
-                          {remitStatusLabel(h.status)}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <div className="mt-4">
-            <button
-              onClick={() => setRecentOpen(false)}
-              className="h-[54px] w-full rounded-pill text-base font-semibold text-ink-soft"
-            >
-              Close
-            </button>
-          </div>
-        </Sheet>
-      ) : null}
     </div>
   );
 }

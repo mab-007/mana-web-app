@@ -221,8 +221,8 @@ export function Save() {
               </button>
             </div>
             <div className="flex items-end">
-              <span className="font-serif text-[92px] leading-[96px] text-success">{apyPct}</span>
-              <span className="mb-3 font-serif text-[30px] text-success">{intro.apyUnit}</span>
+              <span className="font-sans text-[92px] font-extrabold tracking-[-0.02em] leading-[96px] text-success">{apyPct}</span>
+              <span className="mb-3 font-sans text-[30px] font-extrabold tracking-[-0.02em] text-success">{intro.apyUnit}</span>
             </div>
             <RichText text={intro.body} className="block text-[16px] leading-6 text-ink" />
             <div className="mt-4 flex flex-col gap-4">

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Screen } from "@/components/ui";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import {
   BankIcon,
   CardIcon,
@@ -42,13 +43,7 @@ export function AddMoney() {
 
   return (
     <Screen>
-      <div className="mb-2 flex items-center justify-between">
-        <button onClick={() => navigate("/home")} className="text-[15px] text-accent" aria-label="Back">
-          ←
-        </button>
-        <span className="font-serif text-[18px] text-ink">Add money</span>
-        <span className="w-4" />
-      </div>
+      <ScreenHeader title="Add money" fallback="/home" />
 
       <h1 className="mt-2 font-serif text-[26px] text-ink">How do you want to add money?</h1>
       <p className="mt-2 text-[14px] leading-5 text-ink-soft">

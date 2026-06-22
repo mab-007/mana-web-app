@@ -44,7 +44,7 @@ export function PassbookRow({ entry, onClick }: { entry: YieldPassbookEntry; onC
         <span className="block text-[15px] font-semibold text-ink">{m.label}</span>
         <span className="block text-[12px] text-ink-faint">{formatDate(entry.at)}</span>
       </span>
-      <span className={`shrink-0 font-serif text-[16px] ${m.interest ? "text-success" : "text-ink"}`}>
+      <span className={`shrink-0 font-sans text-[16px] font-extrabold tracking-[-0.02em] ${m.interest ? "text-success" : "text-ink"}`}>
         {m.sign}
         {amount}
       </span>
