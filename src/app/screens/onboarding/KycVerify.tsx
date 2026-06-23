@@ -53,7 +53,8 @@ export function KycVerify() {
         if (cancelled.current) return;
         const step = s.onboardingStep;
         if (step === "complete" || step === "kyc_approved" || step === "provisioning") {
-          navigate("/onboarding/done", { replace: true });
+          // ToS moved post-KYC: accept terms after verification, before landing home.
+          navigate("/onboarding/tos", { replace: true });
           return;
         }
         if (step === "kyc_rejected") {

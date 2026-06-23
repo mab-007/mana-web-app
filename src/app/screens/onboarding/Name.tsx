@@ -44,7 +44,8 @@ export function Name() {
         { firstName: firstName.trim(), lastName: lastName.trim(), dateOfBirth: dob },
         idempotencyKey,
       );
-      navigate("/onboarding/tos", { replace: true });
+      // ToS moved post-KYC (2026-06-23): name → KYC → ToS → done.
+      navigate("/onboarding/kyc", { replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong.");
     } finally {

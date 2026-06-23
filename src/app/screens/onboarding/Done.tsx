@@ -2,11 +2,11 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Screen } from "@/components/ui";
 
-const AUTO_LAND_MS = 5000;
+const AUTO_LAND_MS = 2000;
 
-// Terminal onboarding screen — KYC approved + account provisioned. Routing here is
-// driven by stepToRoute (kyc_approved / provisioning). Auto-lands in the app after
-// a beat (matches mobile FE/app/onboarding/done.tsx); tap the card to go now.
+// Terminal onboarding screen — reached after KYC success + ToS acceptance (ToS
+// moved post-KYC 2026-06-23). Auto-lands in the app after a beat (matches mobile
+// FE/app/onboarding/done.tsx); tap the card to go now.
 export function Done() {
   const navigate = useNavigate();
 

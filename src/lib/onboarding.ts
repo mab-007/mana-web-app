@@ -7,11 +7,11 @@ export function stepToRoute(step: string): string {
     case "pin_set":
       return "/onboarding/name";
     case "name_captured":
-      // Flow: name → ToS → KYC (D85, full parity with mobile). Biometric is
-      // mobile-only + non-gating, so name_captured resumes at the next real gate,
-      // the ToS page, which records consent then advances to tos_accepted.
-      return "/onboarding/tos";
+      // Flow (reordered 2026-06-23): name → KYC → ToS → done. ToS moved to AFTER
+      // KYC success, so name_captured resumes straight at KYC (full parity w/ mobile).
+      return "/onboarding/kyc";
     case "tos_accepted":
+      // Legacy mid-funnel users (accepted ToS under the old order) resume at KYC.
       return "/onboarding/kyc";
     case "kyc_submitted":
     case "kyc_rejected":

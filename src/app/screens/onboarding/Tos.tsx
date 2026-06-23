@@ -40,7 +40,7 @@ export function Tos() {
     setError(null);
     try {
       await api.acceptTos(legal.version, idempotencyKey);
-      navigate("/onboarding/kyc", { replace: true });
+      navigate("/onboarding/done", { replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong.");
       proceedingRef.current = false;
