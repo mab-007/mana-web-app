@@ -4,7 +4,6 @@ import { Button, Screen } from "@/components/ui";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { CopyIcon } from "@/components/icons";
 import { api, ApiError, errorText, type AchAccountResponse } from "@/lib/api";
-import { formatUsdc } from "@/lib/format";
 
 // ACH detail screen — the real "Bank transfer" destination (D111). Rain's model is
 // an ACH *push*: we hand the user their virtual-account routing + account number and
@@ -81,7 +80,7 @@ export function AddMoneyAch() {
 
   return (
     <Screen footer={footer}>
-      <ScreenHeader title="Bank transfer" fallback="/add-money" />
+      <ScreenHeader title="Bank Account Details" fallback="/add-money" />
 
       {loading ? (
         <p className="pt-32 text-center text-ink-soft">Loading…</p>
@@ -91,8 +90,7 @@ export function AddMoneyAch() {
         <>
           <h1 className="mt-2 font-serif text-[26px] text-ink">Transfer from your US bank</h1>
           <p className="mt-3 text-[14px] leading-5 text-ink-soft">
-            Send a US ACH transfer to the details below from any US bank account in your name. Funds
-            arrive in 1–3 business days and appear in your wallet automatically.
+            Provide your bank account details below to your employer to set up direct deposit.
           </p>
 
           <div className="mt-5 rounded-card border border-border bg-surface px-4 shadow-card">
@@ -104,10 +102,7 @@ export function AddMoneyAch() {
 
           <div className="mt-5 rounded-card border border-border bg-surface px-4 shadow-card">
             <Fact label="Arrives" value={ach.settlementEstimate} />
-            <Fact label="Fee" value="Free" />
-            {ach.limits.perTransactionMax ? (
-              <Fact label="Per transfer" value={`Up to ${formatUsdc(ach.limits.perTransactionMax)}`} last />
-            ) : null}
+            <Fact label="Fee" value="Free" last />
           </div>
 
           <p className="mt-5 px-1 text-[13px] leading-[18px] text-ink-soft">
