@@ -80,7 +80,7 @@ export function AddMoneyAch() {
 
   return (
     <Screen footer={footer}>
-      <ScreenHeader title="Bank Account Details" fallback="/add-money" />
+      <ScreenHeader title="Bank transfer" fallback="/add-money" />
 
       {loading ? (
         <p className="pt-32 text-center text-ink-soft">Loading…</p>
@@ -88,7 +88,7 @@ export function AddMoneyAch() {
         <ErrorState kind={err.kind} message={err.message} onRetry={load} onBack={() => navigate(-1)} />
       ) : ach ? (
         <>
-          <h1 className="mt-2 font-serif text-[26px] text-ink">Transfer from your US bank</h1>
+          <h1 className="mt-2 font-serif text-[26px] text-ink">Bank account details</h1>
           <p className="mt-3 text-[14px] leading-5 text-ink-soft">
             Provide your bank account details below to your employer to set up direct deposit.
           </p>
