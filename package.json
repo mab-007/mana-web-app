@@ -1,6 +1,6 @@
 {
   "name": "mana-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "MANA web app — onboarding + core money funnel (Vite SPA on the shared EC2 BE).",

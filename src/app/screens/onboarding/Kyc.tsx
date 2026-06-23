@@ -21,6 +21,9 @@ const OCCUPATION = [
   { code: "41-2031", label: "Retail / Hospitality" },
   { code: "39-9099", label: "Other" },
 ];
+// SOC catch-all for "Other" — still sent to Rain; the free-text the user types is
+// stored on our side (occupationOther) for analysis, never forwarded to the vendor.
+const OTHER_OCCUPATION = "39-9099";
 
 // Purpose-of-account + expected monthly volume are required by Rain but not
 // user-facing — send the values the sandbox accepts.
@@ -47,6 +50,7 @@ export function Kyc() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [ssn, setSsn] = useState("");
   const [occupation, setOccupation] = useState(OCCUPATION[0]!.code);
+  const [occupationOther, setOccupationOther] = useState("");
   const [annualSalary, setAnnualSalary] = useState(SALARY[2]!.value);
   const [line1, setLine1] = useState("");
   const [line2, setLine2] = useState("");
@@ -77,7 +81,9 @@ export function Kyc() {
   const regionValid = isUS ? region.length === 2 : region.trim().length >= 1;
   const postalValid = isUS ? /^\d{5}$/.test(postalCode) : postalCode.trim().length >= 1;
   const addressValid = Boolean(line1 && city && regionValid && postalValid);
-  const formValid = emailValid && phoneValid && nationalIdValid && addressValid;
+  // When "Other" is picked, require the free-text occupation.
+  const occupationValid = occupation !== OTHER_OCCUPATION || occupationOther.trim().length > 0;
+  const formValid = emailValid && phoneValid && nationalIdValid && addressValid && occupationValid;
 
   // Formats differ by country — clear values entered under the old country's rules.
   function onCountryChange(iso: string) {
@@ -97,6 +103,8 @@ export function Kyc() {
       phoneCountryCode,
       phoneNumber,
       occupation,
+      occupationLabel: OCCUPATION.find((o) => o.code === occupation)?.label,
+      occupationOther: occupation === OTHER_OCCUPATION ? occupationOther.trim() : undefined,
       annualSalary,
       accountPurpose: DEFAULT_ACCOUNT_PURPOSE,
       expectedMonthlyVolume: DEFAULT_MONTHLY_VOLUME,
@@ -219,6 +227,16 @@ export function Kyc() {
                   </option>
                 ))}
               </select>
+              {occupation === OTHER_OCCUPATION ? (
+                <input
+                  className={`mt-2 ${SELECT_CLASS}`}
+                  value={occupationOther}
+                  onChange={(e) => setOccupationOther(e.target.value.slice(0, 120))}
+                  placeholder="Please specify your occupation"
+                  aria-label="Specify your occupation"
+                  autoFocus
+                />
+              ) : null}
             </div>
             <div>
               <span className="mb-1 block text-[13px] text-ink-soft">Annual income</span>
@@ -260,7 +278,7 @@ export function Kyc() {
                   placeholder="City"
                 />
                 <input
-                  className="h-[52px] w-20 rounded-card border border-border bg-field text-center text-base uppercase text-ink outline-none focus:border-ink"
+                  className="h-[52px] w-20 rounded-card border border-border bg-field text-center text-base text-ink outline-none focus:border-ink"
                   value={region}
                   onChange={(e) => setRegion(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2))}
                   placeholder="State"

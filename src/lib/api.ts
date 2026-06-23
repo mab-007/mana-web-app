@@ -97,6 +97,8 @@ export interface StartKycBody {
   phoneCountryCode: string;
   phoneNumber: string;
   occupation: string;
+  occupationLabel?: string; // human-readable occupation label
+  occupationOther?: string; // free text when "Other" chosen
   annualSalary: string;
   accountPurpose: string;
   expectedMonthlyVolume: string;
