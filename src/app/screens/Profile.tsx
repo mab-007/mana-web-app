@@ -1,4 +1,4 @@
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets, useSessionSigners } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Loader, Screen } from "@/components/ui";
@@ -21,9 +21,14 @@ function formatAddress(a: NonNullable<OnboardingState["user"]["address"]>): stri
 export function Profile() {
   const navigate = useNavigate();
   const { logout } = usePrivy();
+  const { wallets } = useWallets();
+  const { addSessionSigners } = useSessionSigners();
   const [user, setUser] = useState<OnboardingState["user"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // SPIKE (throwaway, chain-seam delegation test — NOT for prod rollout):
+  const [delegating, setDelegating] = useState(false);
+  const [delegationMsg, setDelegationMsg] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -32,6 +37,33 @@ export function Profile() {
       .catch((e) => setError(e instanceof ApiError ? e.message : "Couldn't load your profile."))
       .finally(() => setLoading(false));
   }, []);
+
+  // SPIKE: one-time on-device(web) delegation consent. Adds Mana's session-signer
+  // key-quorum to the user's embedded wallet via the web Privy SDK, then records
+  // the standing grant on the BE. Throwaway branch — discard after validating.
+  async function grantDelegationConsent() {
+    setDelegating(true);
+    setDelegationMsg(null);
+    try {
+      const wallet = wallets.find((w) => w.walletClientType === "privy") ?? wallets[0];
+      if (!wallet?.address) {
+        throw new Error(`No embedded wallet visible on web (wallets=${wallets.length}).`);
+      }
+      const params = await api.getDelegationParams();
+      await addSessionSigners({
+        address: wallet.address,
+        signers: [{ signerId: params.signerId, policyIds: params.policyIds }],
+      });
+      const { delegation } = await api.grantDelegation();
+      setDelegationMsg(
+        `✓ Delegation ${delegation.status} on ${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`,
+      );
+    } catch (e) {
+      setDelegationMsg(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Delegation failed.");
+    } finally {
+      setDelegating(false);
+    }
+  }
 
   async function logoutAndGo() {
     try {
@@ -72,6 +104,23 @@ export function Profile() {
         {/* National ID is intentionally NOT shown — never stored (D23). */}
         {user?.address ? <Field label="Address" value={formatAddress(user.address)} last /> : null}
       </dl>
+
+      {/* SPIKE (throwaway): delegation consent for the chain-seam sweep test. */}
+      <div className="mt-6 rounded-card border border-border bg-surface px-4 py-4 shadow-card">
+        <p className="text-[14px] font-medium text-ink">Card spending (beta)</p>
+        <p className="mt-1 text-[13px] leading-[18px] text-ink-soft">
+          Authorize Mana to move USDC from your wallet into your card reserve. One-time consent.
+        </p>
+        <Button
+          label={delegating ? "Authorizing…" : "Enable card spending"}
+          className="mt-3"
+          onClick={grantDelegationConsent}
+          disabled={delegating}
+        />
+        {delegationMsg ? (
+          <p className="mt-2 break-words text-[12px] text-ink-soft">{delegationMsg}</p>
+        ) : null}
+      </div>
     </Screen>
   );
 }

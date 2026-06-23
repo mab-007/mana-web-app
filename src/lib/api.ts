@@ -595,8 +595,32 @@ export interface RemitConfirmResponse {
   delivery: { rail: string; handle: string; estimateMinutes: string };
 }
 
+// Delegation (chain-seam 2c) — web spike. params → addSessionSigners (web Privy
+// SDK) → grant. Mirrors mobile FE/lib/api.ts.
+export interface DelegationParams {
+  signerId: string;
+  policyIds: string[];
+  usdc: string;
+  scope: { asset: string; chain: string; actions: string[] };
+}
+export interface DelegationView {
+  id: string;
+  userId: string;
+  walletAddress: string;
+  signerId: string;
+  policyId: string | null;
+  status: string;
+  grantedAt: string;
+}
+
 export const api = {
   health: () => request<HealthResponse>("/health"),
+
+  // ── Delegation (web spike) ──
+  getDelegationParams: () => request<DelegationParams>("/v1/delegation/params", { auth: true }),
+  grantDelegation: () =>
+    request<{ delegation: DelegationView }>("/v1/delegation/grant", { method: "POST", auth: true }),
+  getDelegation: () => request<{ delegation: DelegationView | null }>("/v1/delegation", { auth: true }),
 
   signup: (body: SignupBody) =>
     request<SignupResponse>("/v1/onboarding/signup", {

@@ -80,7 +80,7 @@ export function Tos() {
           rel="noopener noreferrer"
           className={`text-[16px] font-semibold text-accent ${legal ? "" : "pointer-events-none opacity-50"}`}
         >
-          Terms &amp; conditions ↗
+          Virtual Account User Terms of Service ↗
         </a>
         <a
           href={legal?.privacyUrl}
