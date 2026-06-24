@@ -78,6 +78,12 @@ const TX_LABELS: Record<string, string> = {
   card_settle: "Card purchase",
   card_authz_reversal: "Card reversal",
   yield_accrual: "Interest earned",
+  // D134/D133 — reward kinds that surface in the activity feed. cashback_accrual is
+  // the EARN row (shown "+"); cashback_redeem is hidden server-side (INTERNAL_FEED_KINDS)
+  // but labelled for completeness. `reward` is the referral payout ($25, D133).
+  cashback_accrual: "Cashback earned",
+  cashback_redeem: "Cashback redeemed",
+  reward: "Referral reward",
 };
 export function txLabel(kind: string): string {
   return TX_LABELS[kind] ?? kind.replace(/_/g, " ");

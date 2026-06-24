@@ -1,36 +1,46 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Screen } from "@/components/ui";
+import { useNavigate } from "react-router-dom";
+import { Button, Loader, Screen } from "@/components/ui";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { CopyIcon } from "@/components/icons";
-import { api, type OnboardingState } from "@/lib/api";
+import { api, ApiError, type ReferralSummary } from "@/lib/api";
+import { inviteLink } from "@/lib/referral";
 
-// Invite & earn — a STATIC referral page (no referral backend yet). Mirror of mobile
-// FE/app/invite.tsx. Surfaces a display invite code derived from the user's name, the
-// reward + eligibility copy, and the native share sheet (clipboard fallback). The
-// eligibility construct (founder, cont.90): the referred friend must SPEND $750 on
-// their Mana card within their first 60 days before either side earns. Swap the
-// derived code for a server-issued one when a real referral service ships.
-const REFERRAL_REWARD = "$25";
-const REFERRAL_SPEND_TARGET = "$750";
+// Invite & earn (D133) — web parity with mobile FE/app/invite.tsx. The code,
+// share text, reward and spend target all come from the BE (GET /v1/referral); the
+// funnel-summary card links to the tracker. Capture-first: `creditingEnabled` is
+// read but never surfaced — the reward promise stands; payout stays dark until D131.
+// The reward construct (founder, cont.90): the referred friend must SPEND $750 on
+// their Mana card within their first 60 days before either side earns.
 const REFERRAL_WINDOW_DAYS = 60;
 
-function inviteCodeFor(user: OnboardingState["user"] | null): string {
-  const base = (user?.legalFirstName || user?.displayName || "friend").replace(/[^a-zA-Z]/g, "").toUpperCase();
-  return "&" + (base.length >= 3 ? base : (base + "MANA").slice(0, 4));
+// USDC minor (6dp) digit string → whole-dollar label ("$25" / "$750"). Reward/target
+// are always round dollars; show no cents.
+function dollars(minor: string): string {
+  const n = Math.round(Number(minor) / 1_000_000);
+  return `$${n.toLocaleString()}`;
 }
 
 export function Invite() {
-  const [user, setUser] = useState<OnboardingState["user"] | null>(null);
+  const navigate = useNavigate();
+  const [summary, setSummary] = useState<ReferralSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(null);
+    setLoading(true);
     api
-      .getState()
-      .then((s) => setUser(s.user))
-      .catch(() => {});
+      .getReferral()
+      .then(setSummary)
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Couldn't load your invite."))
+      .finally(() => setLoading(false));
   }, []);
 
-  const code = inviteCodeFor(user);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   function flash(msg: string) {
     setToast(msg);
@@ -38,20 +48,20 @@ export function Invite() {
   }
 
   const copy = useCallback(async () => {
+    if (!summary) return;
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(summary.code);
       flash("Invite code copied");
     } catch {
       // clipboard blocked (insecure context / permissions) — no-op
     }
-  }, [code]);
+  }, [summary]);
 
   async function invite() {
-    const text =
-      `Join me on Mana — send money home and spend with the Mana card. ` +
-      `Use my invite code ${code} when you sign up. ` +
-      `We both get ${REFERRAL_REWARD} once you spend ${REFERRAL_SPEND_TARGET} on your Mana card ` +
-      `in your first ${REFERRAL_WINDOW_DAYS} days.`;
+    if (!summary) return;
+    // Server-issued share text (carries the code + the spend/earn promise) plus the
+    // web invite link so a friend lands on /welcome with the code prefilled.
+    const text = `${summary.shareText}\n\n${inviteLink(summary.code)}`;
     if (navigator.share) {
       await navigator.share({ text }).catch(() => {});
     } else {
@@ -64,16 +74,29 @@ export function Invite() {
     }
   }
 
+  if (loading) return <Loader label="Loading your invite…" />;
+
+  if (error || !summary) {
+    return (
+      <Screen footer={<Button label="Try again" onClick={load} />}>
+        <ScreenHeader title="" fallback="/account" />
+        <div className="flex flex-1 flex-col items-center justify-center text-center">
+          <p className="text-ink-soft">{error ?? "Couldn't load your invite."}</p>
+        </div>
+      </Screen>
+    );
+  }
+
+  const reward = dollars(summary.rewardPerSideMinor);
+  const target = dollars(summary.spendTargetMinor);
+  const counts = summary.counts;
+
   return (
     <Screen footer={<Button label="Invite friends" onClick={invite} />}>
       <ScreenHeader
         title=""
         fallback="/account"
-        right={
-          <span className="text-[13px] text-ink-faint">
-            Earn {REFERRAL_REWARD}
-          </span>
-        }
+        right={<span className="text-[13px] text-ink-faint">Earn {reward}</span>}
       />
 
       <div className="flex flex-col items-center">
@@ -81,10 +104,10 @@ export function Invite() {
           <GiftGlyph />
         </div>
 
-        <h1 className="text-center font-serif text-[30px] text-ink">Invite & earn {REFERRAL_REWARD}</h1>
+        <h1 className="text-center font-serif text-[30px] text-ink">Invite &amp; earn {reward}</h1>
         <p className="mt-2 px-2 text-center text-[15px] leading-[22px] text-ink-soft">
-          You both get {REFERRAL_REWARD} when your friend gets the Mana card and spends {REFERRAL_SPEND_TARGET} on
-          it within their first {REFERRAL_WINDOW_DAYS} days.
+          You both get {reward} when your friend gets the Mana card and spends {target} on it
+          within their first {REFERRAL_WINDOW_DAYS} days.
         </p>
 
         <p className="mt-8 text-[12px] tracking-[1px] text-ink-faint">YOUR INVITE CODE</p>
@@ -92,15 +115,33 @@ export function Invite() {
           onClick={copy}
           className="mt-2 flex items-center gap-4 rounded-lg border border-dashed border-border bg-surface px-6 py-4 active:opacity-70"
         >
-          <span className="text-[26px] font-extrabold tracking-[1px] text-ink">{code}</span>
+          <span className="text-[26px] font-extrabold tracking-[1px] text-ink">{summary.code}</span>
           <CopyIcon />
         </button>
 
-        <div className="mt-8 w-full">
+        {/* Funnel-summary card → tracker. Shows how many friends are invited and an
+            "earned" badge once any reward has settled. */}
+        <button
+          onClick={() => navigate("/invite-tracker")}
+          className="mt-6 flex w-full items-center gap-3 rounded-card border border-border bg-surface px-4 py-4 text-left active:opacity-70"
+        >
+          <span className="text-[22px] font-extrabold text-ink">{counts.total}</span>
+          <span className="flex-1 text-[15px] text-ink-soft">
+            {counts.total === 1 ? "friend invited" : "friends invited"}
+          </span>
+          {counts.rewarded > 0 ? (
+            <span className="rounded-pill bg-success/15 px-3 py-1 text-[13px] font-bold text-success">
+              {dollars(summary.earnedMinor)} earned
+            </span>
+          ) : null}
+          <span className="text-ink-faint">›</span>
+        </button>
+
+        <div className="mt-6 w-full">
           <Step n="1" text="Share your invite code with a friend." />
           <Step n="2" text="They sign up and get the Mana card." />
-          <Step n="3" text={`They spend ${REFERRAL_SPEND_TARGET} in their first ${REFERRAL_WINDOW_DAYS} days.`} />
-          <Step n="✓" text={`You both earn ${REFERRAL_REWARD}.`} highlight />
+          <Step n="3" text={`They spend ${target} in their first ${REFERRAL_WINDOW_DAYS} days.`} />
+          <Step n="✓" text={`You both earn ${reward}.`} highlight />
         </div>
       </div>
 

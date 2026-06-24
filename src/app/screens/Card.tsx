@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CardFront } from "@/components/CardFront";
+import { CashbackCard } from "@/components/CashbackCard";
 import { CardOutlineIcon, EyeIcon, GearIcon, SnowIcon } from "@/components/icons";
 import { RichText } from "@/components/RichText";
 import { TabHeader } from "@/components/TabHeader";
@@ -10,6 +11,7 @@ import {
   type CardOfferResponse,
   type CardTxnView,
   type CardView,
+  type CashbackSummaryResponse,
   newIdempotencyKey,
   type ReplaceReason,
 } from "@/lib/api";
@@ -90,6 +92,9 @@ export function Card() {
   const [accepted, setAccepted] = useState<Record<string, boolean>>({});
   const [tncOpen, setTncOpen] = useState(false);
   const [feed, setFeed] = useState<CardTxnView[]>([]);
+  // Cashback summary (D134). Best-effort — a failure must never break the card view.
+  const [cashback, setCashback] = useState<CashbackSummaryResponse | null>(null);
+  const [cashbackInfoOpen, setCashbackInfoOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,6 +166,11 @@ export function Card() {
       .getCardOffer()
       .then(setOffer)
       .catch(() => {});
+  }, []);
+
+  // Cashback summary (D134) — best-effort; a failure leaves the card simply absent.
+  useEffect(() => {
+    api.getCashback().then(setCashback).catch(() => {});
   }, []);
 
   // D94: consents are individual checkboxes in the T&C modal the CTA opens — ALL
@@ -482,6 +492,13 @@ export function Card() {
         </div>
       )}
 
+      {/* Cashback card (D134) — accrues on settled purchases; capture-first. */}
+      {cashback ? (
+        <div className="mt-6">
+          <CashbackCard summary={cashback} onInfo={() => setCashbackInfoOpen(true)} />
+        </div>
+      ) : null}
+
       {/* Card transactions */}
       <h2 className="mt-8 font-serif text-[18px] text-ink">Recent transaction</h2>
       <div className="mt-3">
@@ -670,6 +687,35 @@ export function Card() {
             <button onClick={() => setReplaceOpen(false)} className="block w-full text-center text-[14px] text-ink-soft">
               Not now
             </button>
+          </div>
+        </Overlay>
+      ) : null}
+
+      {/* Cashback explainer (D134) — parity with mobile's "How cashback works" sheet. */}
+      {cashbackInfoOpen ? (
+        <Overlay onClose={() => setCashbackInfoOpen(false)}>
+          <p className="font-serif text-[20px] text-ink">How cashback works</p>
+          <ul className="mt-4 space-y-3">
+            {[
+              "Earn cashback on every card purchase. ATM withdrawals, cash advances and transfers don't qualify.",
+              "Your rate rises as you spend more in a month, and resets at the start of each new month.",
+              "Cashback becomes available to spend 30 days after each qualifying purchase.",
+              "If you refund a purchase, the cashback earned on it is removed.",
+            ].map((line, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <span className="mt-0.5 shrink-0 text-success">
+                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <circle cx="12" cy="12" r="9.5" />
+                    <polyline points="8.5 12.5 11 15 15.5 9.5" />
+                  </svg>
+                </span>
+                <span className="text-[13px] leading-5 text-ink-soft">{line}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5">
+            <Button label="Got it" onClick={() => setCashbackInfoOpen(false)} />
           </div>
         </Overlay>
       ) : null}

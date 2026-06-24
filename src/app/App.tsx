@@ -1,7 +1,8 @@
 import { usePrivy } from "@privy-io/react-auth";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Spinner } from "@/components/ui";
+import { captureReferralFromUrl } from "@/lib/referral";
 import { Home } from "@/app/screens/Home";
 import { Login } from "@/app/screens/Login";
 import { Welcome } from "@/app/screens/Welcome";
@@ -30,6 +31,7 @@ import { RemitCompose } from "@/app/screens/RemitCompose";
 import { RemitDetail } from "@/app/screens/RemitDetail";
 import { More } from "@/app/screens/More";
 import { Invite } from "@/app/screens/Invite";
+import { InviteTracker } from "@/app/screens/InviteTracker";
 import { Profile } from "@/app/screens/Profile";
 import { About } from "@/app/screens/About";
 import { Passbook } from "@/app/screens/Passbook";
@@ -54,6 +56,14 @@ function RequireGuest({ children }: { children: ReactNode }) {
 }
 
 export function App() {
+  // Capture an invite code from the launch URL (D133): a deep-link recipient lands
+  // on any path with ?code=… / ?ref=… (e.g. /welcome?code=1234567). Stash it in
+  // localStorage until signup consumes it — independent of where the URL routes, and
+  // it survives the email-OTP round-trip. Capture is best-effort / never blocks.
+  useEffect(() => {
+    captureReferralFromUrl(window.location.href);
+  }, []);
+
   return (
     <Routes>
       {/* Entry gate — resolve where an authenticated user should resume. */}
@@ -95,6 +105,7 @@ export function App() {
       <Route path="/remit/:id" element={<RequireAuth><RemitDetail /></RequireAuth>} />
       <Route path="/more" element={<RequireAuth><More /></RequireAuth>} />
       <Route path="/invite" element={<RequireAuth><Invite /></RequireAuth>} />
+      <Route path="/invite-tracker" element={<RequireAuth><InviteTracker /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

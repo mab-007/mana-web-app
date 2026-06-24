@@ -5,6 +5,11 @@ import { Button, ErrorText, Field, Screen } from "@/components/ui";
 import { CodeInput } from "@/components/CodeInput";
 import { api, errorText } from "@/lib/api";
 import { stepToRoute } from "@/lib/onboarding";
+import {
+  clearPendingReferralCode,
+  getPendingReferralCode,
+  normalizeReferralCode,
+} from "@/lib/referral";
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -22,6 +27,19 @@ export function Login() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+
+  // Optional invite code (D133). Prefill from a deep link captured on launch (App.tsx);
+  // otherwise it stays hidden behind a "Have an invite code?" disclosure. Attribution
+  // is best-effort on the BE, so this never blocks signup.
+  const [referralCode, setReferralCode] = useState("");
+  const [showReferral, setShowReferral] = useState(false);
+  useEffect(() => {
+    const pending = getPendingReferralCode();
+    if (pending) {
+      setReferralCode(pending);
+      setShowReferral(true);
+    }
+  }, []);
 
   // Returning user who already has a live Privy session: bounce to the entry gate
   // which resolves their resume point.
@@ -52,7 +70,12 @@ export function Login() {
     try {
       await loginWithCode({ code: submitted });
       // Authenticated — the Privy token is now available to the API client.
-      const res = await api.signup({ email: email.trim(), deviceId: "web" });
+      const res = await api.signup({
+        email: email.trim(),
+        deviceId: "web",
+        referralCode: normalizeReferralCode(referralCode) ?? undefined,
+      });
+      clearPendingReferralCode();
       navigate(stepToRoute(res.user.onboardingStep), { replace: true });
     } catch (e) {
       setFinishing(false);
@@ -108,6 +131,29 @@ export function Login() {
                   if (e.key === "Enter" && emailValid && !busy) onSendCode();
                 }}
               />
+            </div>
+
+            {/* Optional invite code (D133) — disclosed on tap, prefilled from a deep
+                link. Best-effort attribution; never required. */}
+            <div className="mt-4">
+              {showReferral ? (
+                <Field
+                  label="Invite code"
+                  inputMode="numeric"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.replace(/\D/g, "").slice(0, 7))}
+                  placeholder="7-digit code"
+                  maxLength={7}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowReferral(true)}
+                  className="text-[14px] text-ink-soft"
+                >
+                  Have an <span className="font-semibold text-accent">invite code?</span>
+                </button>
+              )}
             </div>
           </>
         ) : (
