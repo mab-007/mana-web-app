@@ -1,4 +1,12 @@
+import { Buffer } from "buffer";
 import { PrivyProvider, usePrivy } from "@privy-io/react-auth";
+
+// Polyfill Node's Buffer global for the browser. Privy's session-signer crypto
+// path (addSessionSigners / secp256k1) references Buffer, which the login flow
+// never hit — so it only surfaces during the delegation grant. SPIKE.
+if (!(globalThis as { Buffer?: unknown }).Buffer) {
+  (globalThis as { Buffer?: unknown }).Buffer = Buffer;
+}
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -27,9 +35,13 @@ createRoot(root).render(
       config={{
         loginMethods: ["email"],
         appearance: { theme: "light", accentColor: "#1C7C54" },
-        // The BE owns the server-side non-custodial wallet (D21); the browser must
-        // not spin up its own embedded wallet on login.
-        embeddedWallets: { createOnLogin: "off" },
+        // SPIKE (web-delegation-consent, throwaway): D21 normally keeps this "off"
+        // (BE owns the server-side non-custodial wallet; browser must not spin up
+        // its own). For the delegation test the client must CONNECT the existing
+        // server-created wallet so useWallets() surfaces it for addSessionSigners.
+        // "users-without-wallets" should connect the existing owner.user_id wallet,
+        // NOT mint a second — verified by address-match against user_wallets.
+        embeddedWallets: { createOnLogin: "users-without-wallets" },
       }}
     >
       <TokenBridge />
