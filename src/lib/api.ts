@@ -19,6 +19,9 @@ export interface SignupBody {
   phoneE164?: string;
   email?: string;
   deviceId?: string;
+  // Optional 7-digit invite code (D133). Best-effort attribution on the BE — a
+  // stale/garbage value never blocks signup. Mirrors mobile FE/lib/api.ts.
+  referralCode?: string;
 }
 
 export interface SignupResponse {
@@ -595,6 +598,62 @@ export interface RemitConfirmResponse {
   delivery: { rail: string; handle: string; estimateMinutes: string };
 }
 
+// ─── Referral / Invite & Earn (BE: src/routes/referral.ts, D133) ─────────────
+// Read-only views for the invite screen + tracker. All money figures are USDC
+// minor (6dp) digit strings. Capture-first: codes/attribution are tracked now;
+// `creditingEnabled` stays false until the card-spend gate (D131) lifts. Shapes
+// mirror mobile FE/lib/api.ts exactly (proven against the real BE).
+export interface ReferralSummary {
+  code: string;
+  shareText: string;
+  rewardPerSideMinor: string;
+  spendTargetMinor: string;
+  creditingEnabled: boolean;
+  earnedMinor: string;
+  counts: {
+    total: number;
+    pending: number;
+    qualified: number;
+    rewarded: number;
+    expired: number;
+    reversed: number;
+  };
+}
+
+export type ReferralStage =
+  | "joined"
+  | "verified"
+  | "card_active"
+  | "spending"
+  | "rewarded"
+  | "expired"
+  | "reversed";
+
+export interface ReferralListItem {
+  refereeName: string;
+  stage: ReferralStage;
+  status: string;
+  cumulativeSpendMinor: string;
+  spendTargetMinor: string;
+  createdAt: string;
+}
+
+// ─── Cashback (BE: src/routes/cashback.ts, D134) ─────────────────────────────
+// Current-cycle summary for the Card-screen cashback card. Money figures are USDC
+// minor (6dp) digit strings. Capture-first: cashback accrues now; `redemptionEnabled`
+// is false until a funded reward pool exists.
+export interface CashbackSummaryResponse {
+  cycle: string; // YYYY-MM (UTC)
+  baseRateBps: number; // per-user floor (e.g. 100 = 1%)
+  currentRateBps: number; // effective rate at current spend = max(base, tier)
+  eligibleSpendMinor: string; // cumulative eligible spend this cycle (progress base)
+  nextTierThresholdMinor: string | null; // next ladder ceiling, or null in the top tier
+  accruedThisCycleMinor: string; // cashback earned this cycle (excl. clawbacks)
+  pendingMinor: string; // accrued-unredeemed cashback (all cycles)
+  nextRedeemAt: string | null; // ISO; earliest maturing accrual
+  redemptionEnabled: boolean; // payout gate — false until a funded pool exists
+}
+
 export const api = {
   health: () => request<HealthResponse>("/health"),
 
@@ -785,4 +844,12 @@ export const api = {
   },
   getTransaction: (id: string) =>
     request<TransactionDetail>(`/v1/transactions/${id}`, { auth: true }),
+
+  // ── Referral (D133) ──
+  getReferral: () => request<ReferralSummary>("/v1/referral", { auth: true }),
+  getReferralList: () =>
+    request<{ referrals: ReferralListItem[] }>("/v1/referral/list", { auth: true }),
+
+  // ── Cashback (D134) ──
+  getCashback: () => request<CashbackSummaryResponse>("/v1/cashback", { auth: true }),
 };
