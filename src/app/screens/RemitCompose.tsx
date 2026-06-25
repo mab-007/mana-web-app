@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Loader, Screen } from "@/components/ui";
 import {
   api,
@@ -15,9 +15,23 @@ import { dollarsToMinor, formatPhp, formatUsdc, remitRailLabel } from "@/lib/for
 const FIELD =
   "h-[52px] w-full rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink";
 
+// USDC minor → clean dollar-input string ("50500000" → "50.5", "50000000" → "50").
+function minorToDollars(minor: string): string {
+  const n = BigInt(minor);
+  const whole = n / 1_000_000n;
+  const cents = ((n % 1_000_000n) / 10_000n).toString().padStart(2, "0");
+  return cents === "00" ? whole.toString() : `${whole}.${cents}`;
+}
+
 // Compose a remit: pick rail + recipient handle + USD amount → quote → confirm.
 export function RemitCompose() {
   const navigate = useNavigate();
+  // Amount is usually entered on the Send screen keypad and carried in via
+  // ?amountMinor; when present we skip the in-form amount input and show a
+  // summary banner instead (parity with the mobile compose screen).
+  const [searchParams] = useSearchParams();
+  const amountMinor = searchParams.get("amountMinor") ?? undefined;
+  const amountFromEntry = Boolean(amountMinor && amountMinor !== "0");
   const [destinations, setDestinations] = useState<RemitDestination[] | null>(null);
   const [balance, setBalance] = useState<BalanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +43,7 @@ export function RemitCompose() {
   const [bankCode, setBankCode] = useState<string | null>(null);
   const [accountNumber, setAccountNumber] = useState("");
   const [accountHolder, setAccountHolder] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(() => (amountFromEntry ? minorToDollars(amountMinor as string) : ""));
   const [formError, setFormError] = useState<string | null>(null);
 
   const [quote, setQuote] = useState<RemitQuote | null>(null);
@@ -242,6 +256,25 @@ export function RemitCompose() {
         <span className="w-4" />
       </div>
 
+      {amountFromEntry ? (
+        <div className="mt-2 flex items-center justify-between rounded-card border border-border bg-surface p-4">
+          <div>
+            <p className="text-[12px] text-ink-faint">You're sending</p>
+            <p className="mt-0.5 font-sans text-[26px] font-extrabold tracking-[-0.02em] text-ink">
+              {formatUsdc(dollarsToMinor(amount).toString())}
+            </p>
+          </div>
+          <button onClick={() => navigate(-1)} className="text-[15px] font-semibold text-accent">
+            Change
+          </button>
+        </div>
+      ) : null}
+      {amountFromEntry && overBalance ? (
+        <p className="mt-2 text-sm text-danger">
+          That's more than your {formatUsdc((spendableMinor ?? 0n).toString())} balance.
+        </p>
+      ) : null}
+
       {loadError ? <p className="text-sm text-danger">{loadError}</p> : null}
 
       <p className="mt-3 text-[13px] text-ink-soft">Send to</p>
@@ -330,30 +363,34 @@ export function RemitCompose() {
             </>
           )}
 
-          <div>
-            <p className="mb-1 text-[13px] text-ink-soft">Amount</p>
-            <div
-              className={`flex items-center gap-2 rounded-card border bg-field px-4 ${
-                overBalance ? "border-danger" : "border-border"
-              }`}
-            >
-              <span className="font-sans text-[28px] font-extrabold tracking-[-0.02em] text-ink-soft">$</span>
-              <input
-                className="w-full bg-transparent py-3 font-sans text-[28px] font-extrabold tracking-[-0.02em] text-ink outline-none placeholder:text-ink-faint"
-                value={amount}
-                inputMode="decimal"
-                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-                placeholder="0.00"
-              />
+          {!amountFromEntry ? (
+            <div>
+              <p className="mb-1 text-[13px] text-ink-soft">Amount</p>
+              <div
+                className={`flex items-center gap-2 rounded-card border bg-field px-4 ${
+                  overBalance ? "border-danger" : "border-border"
+                }`}
+              >
+                <span className="font-sans text-[28px] font-extrabold tracking-[-0.02em] text-ink-soft">$</span>
+                <input
+                  className="w-full bg-transparent py-3 font-sans text-[28px] font-extrabold tracking-[-0.02em] text-ink outline-none placeholder:text-ink-faint"
+                  value={amount}
+                  inputMode="decimal"
+                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                  placeholder="0.00"
+                />
+              </div>
+              <p className={`mt-1 text-[12px] ${overBalance ? "font-semibold text-danger" : "text-ink-faint"}`}>
+                {overBalance && spendableMinor !== null
+                  ? `More than your ${formatUsdc(spendableMinor.toString())} balance`
+                  : spendableMinor !== null
+                    ? `${formatUsdc(spendableMinor.toString())} available · in US dollars (USDC)`
+                    : `${selected.settlementEstimate} · in US dollars (USDC)`}
+              </p>
             </div>
-            <p className={`mt-1 text-[12px] ${overBalance ? "font-semibold text-danger" : "text-ink-faint"}`}>
-              {overBalance && spendableMinor !== null
-                ? `More than your ${formatUsdc(spendableMinor.toString())} balance`
-                : spendableMinor !== null
-                  ? `${formatUsdc(spendableMinor.toString())} available · in US dollars (USDC)`
-                  : `${selected.settlementEstimate} · in US dollars (USDC)`}
-            </p>
-          </div>
+          ) : (
+            <p className="mt-1 text-[12px] text-ink-faint">{selected.settlementEstimate}</p>
+          )}
         </div>
       ) : null}
 

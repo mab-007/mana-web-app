@@ -1,5 +1,6 @@
 // Money + label formatting. Amounts from the BE are bigint minor-unit STRINGS
 // (USDC = 6dp); never parse them as JS numbers for math — only for display.
+import type { OnrampStage } from "./api";
 
 /** "50" / "50.25" dollars → USDC minor (6dp) bigint. Integer math, no float drift. */
 export function dollarsToMinor(input: string): bigint {
@@ -38,6 +39,76 @@ export function formatPhp(minor: string, decimals = 2): string {
   const wholeGrouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return `${neg ? "-" : ""}₱${wholeGrouped}.${frac}`;
 }
+
+/** "1500" / "1500.25" pesos → PHP minor (2dp) bigint. Integer math, no float drift. */
+export function phpInputToMinor(input: string): bigint {
+  const cleaned = input.replace(/[^0-9.]/g, "");
+  const [whole, frac = ""] = cleaned.split(".");
+  const fracPadded = frac.slice(0, 2).padEnd(2, "0");
+  return BigInt(whole || "0") * 100n + BigInt(fracPadded || "0");
+}
+
+// ─── PH onramp ("Add money from PH", D123) — ported from mobile FE/lib/format ───
+// PH onramp source-method codes (Transfi paymentCode) → friendly label. The hosted
+// widget lets the user switch method at pay time, so bank codes show the generic
+// "PH bank account" (we don't know which bank they'll actually choose).
+const PH_PAYMENT_LABELS: Record<string, string> = {
+  gcash: "GCash",
+  ph_paymaya: "Maya",
+  qrph: "QR Ph",
+  ph_grabpay: "GrabPay",
+  ph_shopee: "ShopeePay",
+  bdo: "PH bank account",
+  bpi: "PH bank account",
+  landbank: "PH bank account",
+  metrobank: "PH bank account",
+  ubp: "PH bank account",
+};
+export function phPaymentLabel(code?: string | null): string {
+  if (!code) return "PH bank account";
+  return PH_PAYMENT_LABELS[code] ?? "PH bank account";
+}
+
+// Per-payment-method onramp limits, in PHP minor units (centavos). Enforced at
+// Transfi's order creation PER PAYMENT METHOD — STRICTER than the loose currency
+// limits the quote reports — so the quote alone can't catch an over-cap amount.
+// From the live sandbox GET /v2/payment-methods (BE probe transfi/01c). NOTE:
+// Landbank caps at ₱50k while BDO/BPI cap at ₱200k.
+export type PhOnrampMethod = {
+  code: string;
+  name: string; // specific name for when the user has explicitly chosen
+  kind: "bank" | "wallet";
+  minMinor: bigint;
+  maxMinor: bigint;
+};
+export const PH_ONRAMP_METHODS: Record<string, PhOnrampMethod> = {
+  bdo: { code: "bdo", name: "BDO", kind: "bank", minMinor: 20_000n, maxMinor: 20_000_000n },
+  bpi: { code: "bpi", name: "BPI", kind: "bank", minMinor: 20_000n, maxMinor: 20_000_000n },
+  landbank: { code: "landbank", name: "Landbank", kind: "bank", minMinor: 20_000n, maxMinor: 5_000_000n },
+  gcash: { code: "gcash", name: "GCash", kind: "wallet", minMinor: 10_000n, maxMinor: 150_000_000n },
+  ph_grabpay: { code: "ph_grabpay", name: "GrabPay", kind: "wallet", minMinor: 20_000n, maxMinor: 200_000_000n },
+};
+/** Banks valid for the onramp (deposit) rail, in display order. */
+export const PH_ONRAMP_BANKS: PhOnrampMethod[] = [
+  PH_ONRAMP_METHODS.bdo,
+  PH_ONRAMP_METHODS.bpi,
+  PH_ONRAMP_METHODS.landbank,
+];
+export function phOnrampMethod(code?: string | null): PhOnrampMethod | undefined {
+  return code ? PH_ONRAMP_METHODS[code] : undefined;
+}
+
+// Onramp status-ladder rank (cont.119 ask #2). Mirrors the BE ONRAMP_STAGE_RANK.
+// `payment_received` is the threshold at which the user can leave the Transfi widget
+// (payment captured) — below it (submitted = not paid) we keep them in the widget.
+export const ONRAMP_STAGE_RANK: Record<OnrampStage, number> = {
+  submitted: 0,
+  payment_received: 1,
+  converting: 2,
+  delivered: 3,
+  credited: 4,
+  failed: 4,
+};
 
 const REMIT_STATUS_LABELS: Record<string, string> = {
   authorized: "Sending",
