@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { CardFront } from "@/components/CardFront";
 import { CashbackCard } from "@/components/CashbackCard";
 import { CardOutlineIcon, EyeIcon, GearIcon, SnowIcon } from "@/components/icons";
@@ -83,8 +84,14 @@ function BenefitIcon({ name }: { name: string }) {
 }
 
 export function Card() {
+  const navigate = useNavigate();
   const [card, setCard] = useState<CardView | null>(null);
   const [canIssue, setCanIssue] = useState(false);
+  // Physical card (D-physical) — a SEPARATE Rain card object that coexists with the
+  // virtual; tracked alongside the (virtual) primary the screen renders.
+  const [physicalCard, setPhysicalCard] = useState<CardView | null>(null);
+  const [canOrderPhysical, setCanOrderPhysical] = useState(false);
+  const [physicalStatusOpen, setPhysicalStatusOpen] = useState(false);
   // BE-driven PDP content (D85/D94): heading, benefit rows, CTA label, disclosure.
   // The PDP body is marketing-only; the legal consents are individual checkboxes in
   // the T&C modal the CTA opens; the agreed terms version is recorded at issue.
@@ -120,8 +127,6 @@ export function Card() {
 
   // Card-management sheets.
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [physicalOpen, setPhysicalOpen] = useState(false);
-  const [physicalDone, setPhysicalDone] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [replaceReason, setReplaceReason] = useState<ReplaceReason>("lost");
 
@@ -129,8 +134,13 @@ export function Card() {
     setError(null);
     try {
       const res = await api.getCards();
-      const live = res.cards.find((c) => c.status !== "canceled") ?? null;
+      const liveCards = res.cards.filter((c) => c.status !== "canceled");
+      // The virtual is the primary card the screen renders; the physical (if any) is
+      // tracked separately. Fall back to the first live card for pre-issuance edges.
+      const live = liveCards.find((c) => c.type === "virtual") ?? liveCards[0] ?? null;
       setCard(live);
+      setPhysicalCard(liveCards.find((c) => c.type === "physical") ?? null);
+      setCanOrderPhysical(res.canOrderPhysical);
       setCanIssue(res.canIssue);
       if (live) {
         const txns = await api.getCardTransactions(live.id, { limit: 20 });
@@ -176,6 +186,25 @@ export function Card() {
   // D94: consents are individual checkboxes in the T&C modal the CTA opens — ALL
   // must be ticked (or "Select all") before "Continue". Tolerate an older BE shape
   // (single `consent`) so a missing field never breaks the page.
+  // Physical card: order is a full-page Confirm-address screen (opt-in, never auto-
+  // shipped). Its PIN unlocks 7 days after order (pure timer, no Rain webhook) — before
+  // then we surface delivery status; after, open the Set/Update-PIN screen.
+  const physicalUnlocked =
+    physicalCard?.pinUnlockAt != null && Date.now() >= new Date(physicalCard.pinUnlockAt).getTime();
+  const openPhysical = () => {
+    setSettingsOpen(false);
+    navigate("/card/order-physical");
+  };
+  const openPhysicalStatus = () => {
+    setSettingsOpen(false);
+    if (!physicalCard) return;
+    if (physicalUnlocked) {
+      navigate(`/card/pin?cardId=${physicalCard.id}&pinSet=${String(physicalCard.pinSet)}`);
+      return;
+    }
+    setPhysicalStatusOpen(true);
+  };
+
   const consents = offer ? (offer.consents ?? (offer.consent ? [offer.consent] : [])) : [];
   const allRequiredAccepted = consents.length > 0 && consents.every((c) => accepted[c.key] ?? false);
   const toggleConsent = (key: string) =>
@@ -586,20 +615,39 @@ export function Card() {
       {settingsOpen ? (
         <Overlay onClose={() => setSettingsOpen(false)}>
           <p className="font-serif text-[20px] text-ink">Card settings</p>
-          <button
-            onClick={() => {
-              setSettingsOpen(false);
-              setPhysicalDone(false);
-              setPhysicalOpen(true);
-            }}
-            className="mt-4 flex w-full items-center justify-between rounded-card border border-border bg-surface p-4 text-left"
-          >
-            <span>
-              <span className="block text-[15px] text-ink">Book a physical card</span>
-              <span className="block text-[13px] text-ink-soft">Order a physical card mailed to you</span>
-            </span>
-            <span className="text-ink-faint">›</span>
-          </button>
+          {physicalCard ? (
+            <button
+              onClick={openPhysicalStatus}
+              className="mt-4 flex w-full items-center justify-between rounded-card border border-border bg-surface p-4 text-left"
+            >
+              <span>
+                <span className="block text-[15px] text-ink">
+                  {physicalUnlocked
+                    ? physicalCard.pinSet
+                      ? "Update card PIN"
+                      : "Set card PIN"
+                    : "Physical card"}
+                </span>
+                <span className="block text-[13px] text-ink-soft">
+                  {physicalUnlocked
+                    ? "Set or change your physical card's PIN"
+                    : `Ending ${physicalCard.last4} • on its way to you`}
+                </span>
+              </span>
+              <span className="text-ink-faint">›</span>
+            </button>
+          ) : canOrderPhysical ? (
+            <button
+              onClick={openPhysical}
+              className="mt-4 flex w-full items-center justify-between rounded-card border border-border bg-surface p-4 text-left"
+            >
+              <span>
+                <span className="block text-[15px] text-ink">Order a physical card</span>
+                <span className="block text-[13px] text-ink-soft">A physical card mailed to you</span>
+              </span>
+              <span className="text-ink-faint">›</span>
+            </button>
+          ) : null}
           <button
             onClick={() => {
               setSettingsOpen(false);
@@ -620,35 +668,19 @@ export function Card() {
         </Overlay>
       ) : null}
 
-      {/* Book physical card sheet (opt-in) */}
-      {physicalOpen ? (
-        <Overlay onClose={() => setPhysicalOpen(false)}>
-          {physicalDone ? (
-            <>
-              <p className="font-serif text-[20px] text-ink">Request received</p>
-              <p className="mt-2 text-[14px] leading-6 text-ink-soft">
-                We'll mail your physical card to your address on file. It typically arrives in 5–7
-                business days.
-              </p>
-              <div className="mt-4">
-                <Button label="Done" onClick={() => setPhysicalOpen(false)} />
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="font-serif text-[20px] text-ink">Order a physical card</p>
-              <p className="mt-2 text-[14px] leading-6 text-ink-soft">
-                We'll mail a physical card to your address on file (5–7 business days). Your virtual
-                card keeps working in the meantime.
-              </p>
-              <div className="mt-4 space-y-2">
-                <Button label="Order physical card" onClick={() => setPhysicalDone(true)} />
-                <button onClick={() => setPhysicalOpen(false)} className="block w-full text-center text-[14px] text-ink-soft">
-                  Not now
-                </button>
-              </div>
-            </>
-          )}
+      {/* Physical-card status (already ordered, not yet PIN-unlockable) — dismissable. */}
+      {physicalStatusOpen ? (
+        <Overlay onClose={() => setPhysicalStatusOpen(false)}>
+          <p className="font-serif text-[20px] text-ink">Physical card on its way</p>
+          <p className="mt-2 text-[14px] leading-6 text-ink-soft">
+            {physicalCard?.last4 ? `Ending ${physicalCard.last4} • ` : ""}
+            it typically arrives in{" "}
+            {physicalCard?.shippingMethod === "uspsinternational" ? "about 15" : "5–7"} business
+            days. You'll be able to set a PIN 7 days after ordering, from Card settings.
+          </p>
+          <div className="mt-4">
+            <Button label="Got it" onClick={() => setPhysicalStatusOpen(false)} />
+          </div>
         </Overlay>
       ) : null}
 

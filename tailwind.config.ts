@@ -20,6 +20,7 @@ export default {
         "accent-pressed": "#BE5031",
         success: "#2E7D5B",
         danger: "#C0492B",
+        warning: "#B5832A", // amber — "needs attention but not an error" (e.g. a held remit)
       },
       fontFamily: {
         serif: ["Georgia", "ui-serif", "serif"],

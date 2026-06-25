@@ -16,10 +16,17 @@ import { KycStatus } from "@/app/screens/onboarding/KycStatus";
 import { Done } from "@/app/screens/onboarding/Done";
 import { AddMoney } from "@/app/screens/AddMoney";
 import { AddMoneyAch } from "@/app/screens/AddMoneyAch";
+import { AddMoneySource } from "@/app/screens/AddMoneySource";
+import { OnrampAmount } from "@/app/screens/OnrampAmount";
+import { OnrampReview } from "@/app/screens/OnrampReview";
+import { OnrampAuthorize } from "@/app/screens/OnrampAuthorize";
+import { OnrampStatus } from "@/app/screens/OnrampStatus";
 import { Account } from "@/app/screens/Account";
 import { TabLayout } from "@/app/screens/TabLayout";
 import { Send } from "@/app/screens/Send";
 import { Card } from "@/app/screens/Card";
+import { OrderPhysical } from "@/app/screens/OrderPhysical";
+import { CardPin } from "@/app/screens/CardPin";
 import { Save } from "@/app/screens/Save";
 import { SaveAmount } from "@/app/screens/save/Amount";
 import { SaveResult } from "@/app/screens/save/Result";
@@ -96,11 +103,18 @@ export function App() {
       <Route path="/about" element={<RequireAuth><About /></RequireAuth>} />
       <Route path="/add-money" element={<RequireAuth><AddMoney /></RequireAuth>} />
       <Route path="/add-money-ach" element={<RequireAuth><AddMoneyAch /></RequireAuth>} />
+      <Route path="/add-money-source" element={<RequireAuth><AddMoneySource /></RequireAuth>} />
+      <Route path="/ph-onramp/amount" element={<RequireAuth><OnrampAmount /></RequireAuth>} />
+      <Route path="/ph-onramp/review" element={<RequireAuth><OnrampReview /></RequireAuth>} />
+      <Route path="/ph-onramp/authorize" element={<RequireAuth><OnrampAuthorize /></RequireAuth>} />
+      <Route path="/ph-onramp/status" element={<RequireAuth><OnrampStatus /></RequireAuth>} />
       <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
       <Route path="/save/amount" element={<RequireAuth><SaveAmount /></RequireAuth>} />
       <Route path="/save/withdraw" element={<RequireAuth><SaveWithdraw /></RequireAuth>} />
       <Route path="/save/passbook" element={<RequireAuth><SavePassbook /></RequireAuth>} />
       <Route path="/save/result" element={<RequireAuth><SaveResult /></RequireAuth>} />
+      <Route path="/card/order-physical" element={<RequireAuth><OrderPhysical /></RequireAuth>} />
+      <Route path="/card/pin" element={<RequireAuth><CardPin /></RequireAuth>} />
       <Route path="/remit/compose" element={<RequireAuth><RemitCompose /></RequireAuth>} />
       <Route path="/remit/:id" element={<RequireAuth><RemitDetail /></RequireAuth>} />
       <Route path="/more" element={<RequireAuth><More /></RequireAuth>} />

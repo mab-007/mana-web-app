@@ -242,6 +242,7 @@ async function request<T>(
 }
 
 // ─── Cards (BE: src/routes/cards.ts) ─────────────────────────
+export type ShippingMethod = "standard" | "express" | "uspsinternational";
 export interface CardView {
   id: string;
   brand: string;
@@ -253,10 +254,41 @@ export interface CardView {
   cardholderName: string;
   frozenByUser: boolean;
   issuedAt: string;
+  pinSet: boolean;
+  // physical-only (undefined on virtual)
+  pinUnlockAt?: string;
+  orderedAt?: string;
+  shippingMethod?: ShippingMethod;
 }
 export interface CardsResponse {
   cards: CardView[];
   canIssue: boolean;
+  canOrderPhysical: boolean;
+}
+export interface PhysicalAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  region: string;
+  postalCode: string;
+  countryCode: string;
+}
+export interface PhysicalCardQuote {
+  feeMinor: string; // USDC 6-dp minor units
+  currency: string;
+  method: ShippingMethod;
+  deliveryDays: string; // "5-7" (US) / "15" (intl)
+  spendableMinor: string;
+  sufficient: boolean;
+  countryCode: string;
+  address: {
+    line1: string;
+    line2: string | null;
+    city: string;
+    region: string;
+    postalCode: string;
+    countryCode: string;
+  } | null;
 }
 // BE-driven Card PDP content (GET /v1/cards/offer) — all copy from the backend.
 export interface CardBenefitRow {
@@ -359,6 +391,42 @@ export interface FundInOption {
 }
 export interface FundInOptionsResponse {
   options: FundInOption[];
+}
+// ── PH onramp ("Add money from PH", D123) — ported from mobile FE/lib/api ──
+// PHP bank/e-wallet → USDC delivered to the user's OWN Base wallet. Quote (How
+// much?) → create order (Review, locks the rate, returns a hosted-widget payUrl)
+// → poll status (On its way). The ledger CREDIT is two-track: it lands via the
+// on-chain crypto-deposit path, NOT this order — so status reaches `credited`
+// only once the USDC actually arrives on-chain.
+export type OnrampOrderStatus = "created" | "processing" | "delivered" | "credited" | "failed" | "expired";
+// Finer presentation rung (cont.119 ask #2). The coarse `status` collapses Transfi's
+// real lifecycle into one `processing` band; `stage` exposes where in that band the
+// order is, so the app leaves the widget as soon as payment is captured
+// (payment_received) and shows a real progress ladder. `submitted` = not paid yet.
+export type OnrampStage = "submitted" | "payment_received" | "converting" | "delivered" | "credited" | "failed";
+export interface OnrampQuote {
+  phpAmountMinor: string; // centavos (2dp)
+  usdcAmountMinor: string; // NET USDC that lands (6dp); display unit = USD 1:1
+  displayMode: "passthrough" | "embedded";
+  ratePhpPerUsd: string; // pesos per USD shown to the user
+  feeUsdcMinor: string; // USDC fee line (gross − net); "0" in embedded mode
+  feeRate: string; // e.g. "0.02"; "0" in embedded mode
+  minPhpMinor: string;
+  maxPhpMinor: string;
+  belowMin: boolean;
+  aboveMax: boolean;
+  withinLimits: boolean;
+  estimatedArrival: string;
+}
+export interface OnrampOrder {
+  orderId: string; // our ph_onramp_orders row id
+  transfiOrderId: string;
+  status: OnrampOrderStatus;
+  stage: OnrampStage; // finer rung within the lifecycle (drives the status ladder)
+  payUrl: string | null;
+  phpAmountMinor: string;
+  usdcAmountMinor: string;
+  paymentCode: string;
 }
 export interface AchAccountResponse {
   achAccount: {
@@ -576,6 +644,10 @@ export interface RemitDetail extends RemitHistoryItem {
   quoteId: string | null;
   fxRate: string | null; // USD→PHP effective rate for this transfer
   fees: { transfiFeeUsdc: string; ourFeeUsdc: string } | null;
+  // per_send async pipeline stage: prefunding → prefund_completed → payout_pending →
+  // (completed); or "held_for_ops" (failed but NOT refunded — manual ops). Null for
+  // standing-mode / legacy. Drives the send-tracking timeline + held-vs-refunded copy.
+  remitStage: string | null;
   timeline: { description: string; postedAt: string }[];
 }
 export interface QuoteBody {
@@ -723,6 +795,26 @@ export const api = {
   // ── Cards ──
   getCards: () => request<CardsResponse>("/v1/cards", { auth: true }),
   getCardOffer: () => request<CardOfferResponse>("/v1/cards/offer", { auth: true }),
+  // Physical card (D-physical): quote (country drives fee + shipping) → order.
+  getPhysicalQuote: (countryCode?: string) =>
+    request<PhysicalCardQuote>(
+      `/v1/cards/physical/quote${countryCode ? `?countryCode=${encodeURIComponent(countryCode)}` : ""}`,
+      { auth: true },
+    ),
+  orderPhysicalCard: (address: PhysicalAddress, idempotencyKey: string) =>
+    request<{ card: CardView }>("/v1/cards/order-physical", {
+      method: "POST",
+      body: address,
+      auth: true,
+      idempotencyKey,
+    }),
+  // `pin` = account MPIN; `cardPin` = the new 4-digit physical-card PIN.
+  setCardPin: (id: string, pin: string, cardPin: string) =>
+    request<{ id: string; pinSet: true }>(`/v1/cards/${id}/pin`, {
+      method: "POST",
+      body: { pin, cardPin },
+      auth: true,
+    }),
   getFxRate: () => request<FxRateResponse>("/v1/fx/usd-php", { auth: true }),
   issueCard: (tosVersion: string, idempotencyKey: string) =>
     request<{ card: CardView }>("/v1/cards/issue", {
@@ -768,6 +860,17 @@ export const api = {
   getFundInAccount: () => request<AchAccountResponse>("/v1/fund-in/account", { auth: true }),
   getWalletAddress: () => request<WalletAddressResponse>("/v1/fund-in/wallet-address", { auth: true }),
   getFundInLimits: () => request<LimitsBlock>("/v1/fund-in/limits", { auth: true }),
+
+  // ── PH onramp (D123) — quote → create order → poll status ──
+  getOnrampQuote: (phpAmountMinor: string) =>
+    request<OnrampQuote>(
+      `/v1/fund-in/ph-onramp/quote?phpAmountMinor=${encodeURIComponent(phpAmountMinor)}`,
+      { auth: true },
+    ),
+  createOnrampOrder: (body: { phpAmountMinor: string; paymentCode?: string }, idempotencyKey: string) =>
+    request<OnrampOrder>("/v1/fund-in/ph-onramp/order", { method: "POST", auth: true, body, idempotencyKey }),
+  getOnrampOrder: (id: string) =>
+    request<OnrampOrder>(`/v1/fund-in/ph-onramp/order/${id}`, { auth: true }),
   // DEV/DEMO ONLY (BE gated by FUND_IN_MODE=fake) — instant wallet credit. 403s in
   // any other mode; the add-money flow surfaces that as "not available in this build".
   simulateFundIn: (
