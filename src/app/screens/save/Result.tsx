@@ -47,14 +47,21 @@ export function SaveResult() {
     let active = true;
     (async () => {
       try {
-        const res = isDeposit
-          ? await api.yieldDeposit(amountMinor, idemKey)
-          : await api.yieldWithdraw(idemKey);
-        if (!active) return;
-        setMovedMinor(res.amountMinor);
-        // Pending only if the BE returns a not-yet-settled status (real async path).
-        const pending = res.status === "pending" || res.status === "processing";
-        setPhase(pending ? "pending" : "success");
+        if (isDeposit) {
+          // D-BRIDGE: Move to Save. "deposited" = enough Base USDC, done now; "processing"
+          // = bridging the Polygon shortfall → the Save home shows the in-flight banner and
+          // the deposit completes via webhook. Funds never leave the user's balance either way.
+          const res = await api.moveToSave(amountMinor, idemKey);
+          if (!active) return;
+          setMovedMinor(res.amountMinor);
+          setPhase(res.status === "processing" ? "pending" : "success");
+        } else {
+          const res = await api.yieldWithdraw(idemKey);
+          if (!active) return;
+          setMovedMinor(res.amountMinor);
+          // Pending only if the BE returns a not-yet-settled status (real async path).
+          setPhase(res.status === "pending" || res.status === "processing" ? "pending" : "success");
+        }
       } catch (e) {
         if (!active) return;
         setErrorMsg(e instanceof ApiError ? e.message : null);

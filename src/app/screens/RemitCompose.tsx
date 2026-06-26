@@ -71,7 +71,8 @@ export function RemitCompose() {
     })();
   }, []);
 
-  // Tick the live 60s quote countdown while the review page is open.
+  // Tick the live quote countdown while the review page is open. The BE pins a 7s
+  // platform rate-lock (REMIT_QUOTE_TTL_SEC, D-QUOTE-LOCK); we re-price on lapse.
   useEffect(() => {
     if (!quote) return;
     setExpiresIn(quote.expiresInSec);
@@ -154,17 +155,19 @@ export function RemitCompose() {
     }
   }
 
-  async function refreshQuote() {
+  async function refreshQuote(): Promise<RemitQuote | null> {
     const body = buildQuoteBody();
-    if (!body) return;
+    if (!body) return null;
     setSheetError(null);
     setQuoting(true);
     try {
       const { quote: q } = await api.createQuote(body);
       confirmKey.current = newIdempotencyKey();
       setQuote(q);
+      return q;
     } catch (e) {
       setSheetError(e instanceof ApiError ? e.message : "Couldn't refresh the quote.");
+      return null;
     } finally {
       setQuoting(false);
     }
@@ -186,7 +189,22 @@ export function RemitCompose() {
       setQuote(null);
       navigate(`/remit/${res.transactionId}?sent=1`, { replace: true });
     } catch (e) {
-      setSheetError(e instanceof ApiError ? e.message : "Couldn't send. Your money was not moved.");
+      // The rate moved or the lock lapsed between display and confirm (D-QUOTE-LOCK
+      // drift guard / TTL). No money moved and the old quote is retired — silently
+      // re-price and ask the user to confirm the updated rate. The single CTA stays
+      // usable; the new quote carries a fresh idempotency key.
+      if (e instanceof ApiError && (e.userCode === "rate_drift_exceeded" || e.userCode === "quote_expired")) {
+        const fresh = await refreshQuote();
+        if (fresh) {
+          setSheetError(
+            e.userCode === "rate_drift_exceeded"
+              ? "The rate moved — review the updated rate and tap Send now to confirm."
+              : "The rate just updated. Tap Send now to confirm.",
+          );
+        }
+      } else {
+        setSheetError(e instanceof ApiError ? e.message : "Couldn't send. Your money was not moved.");
+      }
     } finally {
       setConfirming(false);
     }

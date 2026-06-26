@@ -3,19 +3,15 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Loader, Screen, Sheet } from "@/components/ui";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { CheckIcon, ChevronRight } from "@/components/icons";
-import { api, ApiError, newIdempotencyKey, type OnrampQuote } from "@/lib/api";
-import { formatPhp, formatUsdc, phOnrampMethod, PH_ONRAMP_BANKS, phPaymentLabel } from "@/lib/format";
+import { api, ApiError, newIdempotencyKey } from "@/lib/api";
+import { formatPhp, formatUsdc, phPaymentLabel } from "@/lib/format";
+import { isBankMethod, useOnrampMethods, useOnrampQuote } from "@/lib/onramp";
 
-// PH onramp screen 4 — "Review" (D123). Shows the live quote once more, then "Lock
-// rate & confirm" POSTs the order, which locks the Transfi rate server-side and
-// returns a hosted-widget payUrl carried to the Authorize step. The idempotency key
-// is stable across retries so a double-tap never opens a second order. The widget
-// locks to the single paymentCode we send, so bank selection lives HERE.
-// Mirror of mobile FE/app/ph-onramp/review.tsx.
-function bankName(code: string): string {
-  return phOnrampMethod(code)?.name ?? "PH bank account";
-}
-
+// PH onramp screen 4 — "Review" (D123 + D-QUOTE-LOCK). Shows the LIVE, method-aware
+// quote (auto-refreshing every 7s) and, on confirm, POSTs the order carrying the
+// quote's `quoteId` so the BE honors exactly the rate the user saw (or rejects it as
+// expired → we silently re-quote). The bank list + per-method caps come from the live
+// methods endpoint, not a hardcoded table. Mirror of mobile FE/app/ph-onramp/review.tsx.
 export function OnrampReview() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -23,29 +19,6 @@ export function OnrampReview() {
   const paymentCode = params.get("paymentCode") ?? "gcash";
   const failed = params.get("failed");
 
-  const [quote, setQuote] = useState<OnrampQuote | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const idemKey = useRef(newIdempotencyKey()).current;
-
-  // The incoming bank code is a DEFAULT, not a real user choice — for the bank rail
-  // we require an explicit pick before confirm. The wallet rail (e.g. GCash) routes
-  // through a single fixed code, so no pick is needed.
-  const incomingMethod = phOnrampMethod(paymentCode);
-  const incomingIsBank = incomingMethod?.kind === "bank";
-  const [selectedCode, setSelectedCode] = useState<string | null>(incomingIsBank ? null : paymentCode);
-  const [bankSheetOpen, setBankSheetOpen] = useState(false);
-  const bankPicked = selectedCode !== null;
-
-  const payWithLabel = !selectedCode
-    ? "Select bank"
-    : incomingIsBank
-      ? bankName(selectedCode)
-      : phPaymentLabel(selectedCode);
-
-  // Per-method cap guard — Transfi enforces a per-method max at order creation that
-  // the amount-screen quote can't see, so catch an over-cap pick before we POST.
   const phpMinorBig = (() => {
     try {
       return BigInt(phpMinor);
@@ -53,33 +26,52 @@ export function OnrampReview() {
       return 0n;
     }
   })();
-  const selectedMethod = selectedCode ? phOnrampMethod(selectedCode) : undefined;
-  const overCap = !!selectedMethod && phpMinorBig > selectedMethod.maxMinor;
-  const needsBank = incomingIsBank && !bankPicked;
-  const blockConfirm = overCap || needsBank;
 
+  const { methods, find: findMethod } = useOnrampMethods();
+
+  // The incoming code is a DEFAULT, not a real choice — the web onramp entry is the
+  // bank rail, so we require an explicit bank pick before confirm. A wallet rail (if
+  // ever routed here) routes through its single fixed code, so we prefill it.
+  const incoming = findMethod(paymentCode);
+  const incomingIsBank = incoming ? isBankMethod(incoming) : true;
+  const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const [bankSheetOpen, setBankSheetOpen] = useState(false);
   useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const q = await api.getOnrampQuote(phpMinor);
-        if (active) setQuote(q);
-      } catch (e) {
-        if (active) setLoadError(e instanceof ApiError ? e.message : "Couldn't load the quote.");
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [phpMinor]);
+    if (incoming && !incomingIsBank && selectedCode === null) setSelectedCode(paymentCode);
+  }, [incoming, incomingIsBank, selectedCode, paymentCode]);
+
+  // Price for the picked method; before a pick, show a rate for the incoming default.
+  const quoteFor = selectedCode ?? paymentCode;
+  const { quote, quoting, error: quoteError, secondsLeft, refresh } = useOnrampQuote(phpMinorBig, quoteFor, 0);
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const idemKey = useRef(newIdempotencyKey()).current;
+
+  const bankMethods = (methods ?? []).filter(isBankMethod);
+  const selectedMethod = selectedCode ? findMethod(selectedCode) : undefined;
+  const payWithLabel = !selectedCode
+    ? "Select bank"
+    : selectedMethod?.name ?? phPaymentLabel(selectedCode);
+
+  // Per-method cap guard — the amount screen can't always see the picked method's cap.
+  const overCap = !!selectedMethod && phpMinorBig > BigInt(selectedMethod.maxPhpMinor);
+  const bankPicked = selectedCode !== null;
+  const needsBank = incomingIsBank && !bankPicked;
+  // Don't confirm while the quote is still catching up to the selected method.
+  const quoteMatchesSelection = !!quote && !!selectedCode && quote.paymentCode === selectedCode;
+  const blockConfirm = overCap || needsBank || busy || quoting || !quoteMatchesSelection;
 
   async function confirm() {
-    if (busy || blockConfirm || !selectedCode) return;
+    if (blockConfirm || !selectedCode || !quote) return;
     const code = selectedCode;
     setBusy(true);
     setError(null);
     try {
-      const order = await api.createOnrampOrder({ phpAmountMinor: phpMinor, paymentCode: code }, idemKey);
+      const order = await api.createOnrampOrder(
+        { phpAmountMinor: phpMinor, paymentCode: code, quoteId: quote.quoteId },
+        idemKey,
+      );
       const base = `orderId=${encodeURIComponent(order.orderId)}&php=${encodeURIComponent(phpMinor)}&usdc=${encodeURIComponent(order.usdcAmountMinor)}&paymentCode=${encodeURIComponent(code)}`;
       if (order.payUrl) {
         navigate(`/ph-onramp/authorize?${base}&payUrl=${encodeURIComponent(order.payUrl)}`, { replace: true });
@@ -88,13 +80,21 @@ export function OnrampReview() {
         navigate(`/ph-onramp/status?${base}`, { replace: true });
       }
     } catch (e) {
-      setError(
-        e instanceof ApiError && e.httpStatus === 403
-          ? "Adding money from PH isn't available yet."
-          : e instanceof ApiError
-            ? e.message
-            : "Couldn't start the transfer. Try again.",
-      );
+      // The rate ticked over between display and POST — silently pull a fresh quote
+      // and ask the user to confirm the updated rate (no second order is created
+      // because the idempotency key is stable).
+      if (e instanceof ApiError && e.userCode === "onramp_quote_expired") {
+        refresh();
+        setError("The rate just updated. Please confirm again.");
+      } else {
+        setError(
+          e instanceof ApiError && e.httpStatus === 403
+            ? "Adding money from PH isn't available yet."
+            : e instanceof ApiError
+              ? e.message
+              : "Couldn't start the transfer. Try again.",
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -104,7 +104,7 @@ export function OnrampReview() {
     return (
       <Screen>
         <ScreenHeader title="Review" fallback="/add-money-source" />
-        {loadError ? <p className="mt-10 text-center text-sm text-danger">{loadError}</p> : <Loader label="Loading…" />}
+        {quoteError ? <p className="mt-10 text-center text-sm text-danger">{quoteError}</p> : <Loader label="Loading…" />}
       </Screen>
     );
   }
@@ -141,7 +141,11 @@ export function OnrampReview() {
           placeholder={!selectedCode}
           onClick={incomingIsBank && !busy ? () => setBankSheetOpen(true) : undefined}
         />
-        <Row label="Rate" value={`1 USD = ₱${Number(quote.ratePhpPerUsd).toFixed(2)}`} />
+        <Row
+          label="Rate"
+          value={`1 USD = ₱${Number(quote.ratePhpPerUsd).toFixed(2)}`}
+          hint={secondsLeft > 0 ? `refreshes in ${secondsLeft}s` : undefined}
+        />
         <Row label="Fee" value={feeValue} />
         <Row label="Arrives" value={quote.estimatedArrival} />
         <Row label="You receive" value={formatUsdc(quote.usdcAmountMinor)} strong last />
@@ -151,8 +155,8 @@ export function OnrampReview() {
         <p className="mt-4 text-[13px] font-semibold text-ink-soft">Choose a bank to continue.</p>
       ) : overCap && selectedMethod ? (
         <p className="mt-4 text-[13px] font-semibold leading-5 text-danger">
-          {selectedMethod.name}'s limit is {formatPhp(selectedMethod.maxMinor.toString())} per transfer. Go back and lower
-          the amount, or choose another bank.
+          {selectedMethod.name}'s limit is {formatPhp(selectedMethod.maxPhpMinor)} per transfer. Go back and lower the
+          amount, or choose another bank.
         </p>
       ) : null}
 
@@ -167,13 +171,14 @@ export function OnrampReview() {
         <Sheet onClose={() => setBankSheetOpen(false)}>
           <h2 className="mb-2 font-serif text-[20px] text-ink">Choose your bank</h2>
           <div>
-            {PH_ONRAMP_BANKS.map((b) => {
-              const selected = b.code === selectedCode;
+            {bankMethods.map((b) => {
+              const selected = b.paymentCode === selectedCode;
               return (
                 <button
-                  key={b.code}
+                  key={b.paymentCode}
                   onClick={() => {
-                    setSelectedCode(b.code);
+                    setSelectedCode(b.paymentCode);
+                    setError(null);
                     setBankSheetOpen(false);
                   }}
                   className="flex w-full items-center justify-between border-b border-border py-3 text-left last:border-b-0"
@@ -196,6 +201,7 @@ function Row({
   strong,
   last,
   placeholder,
+  hint,
   onClick,
 }: {
   label: string;
@@ -203,6 +209,7 @@ function Row({
   strong?: boolean;
   last?: boolean;
   placeholder?: boolean;
+  hint?: string;
   onClick?: () => void;
 }) {
   const inner = (
@@ -212,6 +219,7 @@ function Row({
         <span className={`text-[15px] ${strong ? "font-bold text-ink" : placeholder ? "font-semibold text-accent" : "text-ink"}`}>
           {value}
         </span>
+        {hint ? <span className="text-[12px] text-ink-faint">· {hint}</span> : null}
         {onClick ? <ChevronRight /> : null}
       </dd>
     </>

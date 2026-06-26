@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Screen } from "@/components/ui";
 import { ScreenHeader } from "@/components/ScreenHeader";
-import { api, ApiError, type OnrampQuote } from "@/lib/api";
-import { formatPhp, formatUsdc, phOnrampMethod, phpInputToMinor, phPaymentLabel } from "@/lib/format";
+import { formatPhp, formatUsdc, phPaymentLabel, phpInputToMinor } from "@/lib/format";
+import { useOnrampMethods, useOnrampQuote } from "@/lib/onramp";
+import { useState } from "react";
 
-// PH onramp screen 3 — "How much?" (D123). Enter pesos; fetch a LIVE Transfi quote
-// (debounced) and show the USD that lands plus rate/fee. Min/max are enforced PER
-// payment method (lib/format) since the quote only reports loose currency limits.
+// PH onramp screen 3 — "How much?" (D123 + D-QUOTE-LOCK). Enter pesos; fetch a LIVE,
+// method-aware Transfi quote (debounced) that auto-refreshes every 7s so the shown
+// USD/rate/fee is never stale. Min/max are enforced PER payment method from the live
+// methods list (BE P2 caps), since the quote only reports loose currency limits.
 // Mirror of mobile FE/app/ph-onramp/amount.tsx.
 export function OnrampAmount() {
   const navigate = useNavigate();
@@ -15,64 +16,29 @@ export function OnrampAmount() {
   const paymentCode = params.get("paymentCode") ?? "gcash";
 
   const [amount, setAmount] = useState("");
-  const [quote, setQuote] = useState<OnrampQuote | null>(null);
-  const [quoting, setQuoting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const phpMinor = amount ? phpInputToMinor(amount) : 0n;
   const phpMinorStr = phpMinor.toString();
 
-  // Debounced live quote. Each keystroke restarts a 400ms timer; a sequence guard
-  // drops out-of-order responses so the displayed quote always matches the input.
-  const seq = useRef(0);
-  useEffect(() => {
-    if (phpMinor <= 0n) {
-      setQuote(null);
-      setError(null);
-      setQuoting(false);
-      return;
-    }
-    const mine = ++seq.current;
-    setQuoting(true);
-    const t = setTimeout(async () => {
-      try {
-        const q = await api.getOnrampQuote(phpMinorStr);
-        if (seq.current !== mine) return;
-        setQuote(q);
-        setError(null);
-      } catch (e) {
-        if (seq.current !== mine) return;
-        setQuote(null);
-        setError(
-          e instanceof ApiError && e.httpStatus === 403
-            ? "Adding money from PH isn't available yet."
-            : e instanceof ApiError
-              ? e.message
-              : "Couldn't get a rate. Try again.",
-        );
-      } finally {
-        if (seq.current === mine) setQuoting(false);
-      }
-    }, 400);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phpMinorStr]);
+  const { quote, quoting, error, secondsLeft } = useOnrampQuote(phpMinor, paymentCode, 400);
+  const { find: findMethod } = useOnrampMethods();
 
   // The quote only reports the loose currency limit (~₱6.1M); the real cap is PER
-  // payment method, enforced at order creation (BDO/BPI ₱200k, Landbank ₱50k).
-  const method = phOnrampMethod(paymentCode);
-  const belowMin = !!method && phpMinor > 0n && phpMinor < method.minMinor;
-  const aboveMax = !!method && phpMinor > method.maxMinor;
+  // payment method, from the live methods list (BDO/BPI ₱200k, Landbank ₱50k, …).
+  const method = findMethod(paymentCode);
+  const minMinor = method ? BigInt(method.minPhpMinor) : null;
+  const maxMinor = method ? BigInt(method.maxPhpMinor) : null;
+  const belowMin = minMinor !== null && phpMinor > 0n && phpMinor < minMinor;
+  const aboveMax = maxMinor !== null && phpMinor > maxMinor;
   const withinMethodLimits = !belowMin && !aboveMax;
 
   const canContinue = !!quote && quote.withinLimits && withinMethodLimits && !quoting;
   const receive = quote ? quote.usdcAmountMinor : "0";
 
   const limitHint =
-    belowMin && method
-      ? `Minimum is ${formatPhp(method.minMinor.toString())}`
-      : aboveMax && method
-        ? `Maximum is ${formatPhp(method.maxMinor.toString())}`
+    belowMin && minMinor !== null
+      ? `Minimum is ${formatPhp(minMinor.toString())}`
+      : aboveMax && maxMinor !== null
+        ? `Maximum is ${formatPhp(maxMinor.toString())}`
         : quote && quote.belowMin
           ? `Minimum is ${formatPhp(quote.minPhpMinor)}`
           : quote && quote.aboveMax
@@ -120,6 +86,9 @@ export function OnrampAmount() {
           <p>Exchange rate · 1 USD = ₱{Number(quote.ratePhpPerUsd).toFixed(2)}</p>
           <p>{quote.displayMode === "embedded" ? "Fees · included" : `Transfi fee · ${formatUsdc(quote.feeUsdcMinor)}`}</p>
           <p>Arrives · {quote.estimatedArrival}</p>
+          {secondsLeft > 0 ? (
+            <p className="text-ink-faint">Live rate · refreshes in {secondsLeft}s</p>
+          ) : null}
         </div>
       ) : null}
 

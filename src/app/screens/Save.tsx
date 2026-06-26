@@ -54,6 +54,17 @@ export function Save() {
     load();
   }, []);
 
+  // D-BRIDGE: while a Move-to-Save bridge is in flight, poll until it lands. The Save home
+  // is the inline-status surface (server-backed pendingMoveToSave survives navigation +
+  // reload); bridge fills are seconds–minutes, so a short poll is enough. Clears itself
+  // when the field goes null (deposited) or the actionId changes.
+  useEffect(() => {
+    if (!status?.pendingMoveToSave) return;
+    const t = setInterval(() => load(), 4000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.pendingMoveToSave?.actionId]);
+
   // Terms/pricing link for the info sheet — sourced from the BE legal config.
   useEffect(() => {
     let active = true;
@@ -97,6 +108,18 @@ export function Save() {
     <TabScreen>
       <TabHeader title="Save" />
       {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+
+      {status.pendingMoveToSave ? (
+        <div className="mt-3 flex items-center gap-3 rounded-card border border-border bg-surface p-4 shadow-card">
+          <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-border border-t-accent" />
+          <div className="flex-1">
+            <p className="text-[14px] font-bold text-ink">{home.moving.title}</p>
+            <p className="text-[13px] leading-[18px] text-ink-soft">
+              {home.moving.body.replace("{amount}", formatUsdc(status.pendingMoveToSave.amountMinor))}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {!status.eligible ? (
         <div className="mt-3 rounded-card border border-border bg-surface p-5 shadow-card">

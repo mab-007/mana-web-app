@@ -405,18 +405,32 @@ export type OnrampOrderStatus = "created" | "processing" | "delivered" | "credit
 // (payment_received) and shows a real progress ladder. `submitted` = not paid yet.
 export type OnrampStage = "submitted" | "payment_received" | "converting" | "delivered" | "credited" | "failed";
 export interface OnrampQuote {
+  quoteId: string; // platform-stored 7s quote id; passed back into the order (D-QUOTE-LOCK)
+  paymentCode: string; // the method this quote was priced for (echoed back)
   phpAmountMinor: string; // centavos (2dp)
   usdcAmountMinor: string; // NET USDC that lands (6dp); display unit = USD 1:1
   displayMode: "passthrough" | "embedded";
   ratePhpPerUsd: string; // pesos per USD shown to the user
   feeUsdcMinor: string; // USDC fee line (gross − net); "0" in embedded mode
   feeRate: string; // e.g. "0.02"; "0" in embedded mode
+  feeMode: string; // "percentage" | "fixed" — config-driven off the live quote (cont.137)
   minPhpMinor: string;
   maxPhpMinor: string;
   belowMin: boolean;
   aboveMax: boolean;
   withinLimits: boolean;
   estimatedArrival: string;
+  expiresAt: string; // ISO; the quote is dead after this
+  expiresInSec: number; // 7s TTL — drives the FE countdown + auto-refresh
+}
+// Live PH deposit methods + authoritative per-method caps (BE P2 list, served by
+// GET /v1/fund-in/ph-onramp/methods). Replaces the FE-hardcoded PH_ONRAMP_METHODS.
+export interface OnrampMethodInfo {
+  paymentCode: string; // e.g. "bdo", "gcash"
+  paymentType: string; // "bank_transfer" | "local_wallet"
+  name: string; // display name, e.g. "BDO"
+  minPhpMinor: string; // per-method min (centavos)
+  maxPhpMinor: string; // per-method max (centavos)
 }
 export interface OnrampOrder {
   orderId: string; // our ph_onramp_orders row id
@@ -501,6 +515,8 @@ export interface YieldHomeCopy {
   lifetimeLabel: string;
   interestEarnedLabel: string;
   upsell: { badge: string; title: string; body: string };
+  // Inline banner while a Move-to-Save bridge is in flight; `body` has an {amount} slot.
+  moving: { title: string; body: string };
 }
 export interface YieldAmountCopy {
   depositTitle: string;
@@ -558,6 +574,14 @@ export interface YieldStatusResponse {
   vaultName: string;
   currency: string;
   copy: YieldCopy; // BE-powered Save copy (intro + home + amount + result)
+  // D-BRIDGE — an in-flight Move-to-Save (Polygon→Base bridge not yet deposited), or null
+  // when idle. Drives the inline "moving your money to Save" banner on the Save home.
+  pendingMoveToSave: {
+    actionId: string;
+    amountMinor: string; // the requested Save amount (not the bridged shortfall)
+    fromChain: string;
+    startedAt: string; // ISO timestamp
+  } | null;
 }
 export interface YieldMoveResponse {
   transactionId: string;
@@ -565,6 +589,15 @@ export interface YieldMoveResponse {
   principalMinor: string;
   currentValueMinor: string;
   status: string; // active | closed
+}
+// D-BRIDGE — POST /v1/yield/move-to-save. Either deposits now (enough Base USDC →
+// "deposited") or bridges the Polygon shortfall and returns "processing" while the
+// webhook completes the deposit. The cross-chain-safe superset of yield/deposit.
+export interface MoveToSaveResponse {
+  status: "deposited" | "processing";
+  amountMinor: string;
+  transactionId?: string; // present when deposited synchronously
+  bridge?: { actionId?: string; fromChain: string; shortfallMinor: string };
 }
 export interface YieldPassbookEntry {
   transactionId: string;
@@ -861,13 +894,17 @@ export const api = {
   getWalletAddress: () => request<WalletAddressResponse>("/v1/fund-in/wallet-address", { auth: true }),
   getFundInLimits: () => request<LimitsBlock>("/v1/fund-in/limits", { auth: true }),
 
-  // ── PH onramp (D123) — quote → create order → poll status ──
-  getOnrampQuote: (phpAmountMinor: string) =>
+  // ── PH onramp (D123 + D-QUOTE-LOCK) — methods → quote → create order → poll ──
+  getOnrampMethods: () =>
+    request<{ methods: OnrampMethodInfo[] }>("/v1/fund-in/ph-onramp/methods", { auth: true }),
+  getOnrampQuote: (phpAmountMinor: string, paymentCode?: string) =>
     request<OnrampQuote>(
-      `/v1/fund-in/ph-onramp/quote?phpAmountMinor=${encodeURIComponent(phpAmountMinor)}`,
+      `/v1/fund-in/ph-onramp/quote?phpAmountMinor=${encodeURIComponent(phpAmountMinor)}${
+        paymentCode ? `&paymentCode=${encodeURIComponent(paymentCode)}` : ""
+      }`,
       { auth: true },
     ),
-  createOnrampOrder: (body: { phpAmountMinor: string; paymentCode?: string }, idempotencyKey: string) =>
+  createOnrampOrder: (body: { phpAmountMinor: string; paymentCode?: string; quoteId?: string }, idempotencyKey: string) =>
     request<OnrampOrder>("/v1/fund-in/ph-onramp/order", { method: "POST", auth: true, body, idempotencyKey }),
   getOnrampOrder: (id: string) =>
     request<OnrampOrder>(`/v1/fund-in/ph-onramp/order/${id}`, { auth: true }),
@@ -886,6 +923,16 @@ export const api = {
   getYield: () => request<YieldStatusResponse>("/v1/yield", { auth: true }),
   yieldDeposit: (amountMinor: string, idempotencyKey: string) =>
     request<YieldMoveResponse>("/v1/yield/deposit", {
+      method: "POST",
+      body: { amountMinor },
+      auth: true,
+      idempotencyKey,
+    }),
+  // D-BRIDGE — cross-chain-safe deposit: deposits now if enough Base USDC, else bridges
+  // the Polygon shortfall (→ "processing") then completes via webhook. Replaces the bare
+  // yieldDeposit on the Save deposit flow so funds on any chain can reach the Base vault.
+  moveToSave: (amountMinor: string, idempotencyKey: string) =>
+    request<MoveToSaveResponse>("/v1/yield/move-to-save", {
       method: "POST",
       body: { amountMinor },
       auth: true,
