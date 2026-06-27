@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Button, Loader, Screen } from "@/components/ui";
+import { BackChevron, Button, Loader, Screen } from "@/components/ui";
 import { api, ApiError, type TransactionDetail, type YieldStatusResponse } from "@/lib/api";
 import { formatDateTime, formatUsdc } from "@/lib/format";
 
@@ -49,9 +49,7 @@ export function InterestDetail() {
 
   return (
     <Screen footer={back}>
-      <button onClick={() => navigate(-1)} className="self-start text-[14px] text-accent">
-        ← Back
-      </button>
+      <BackChevron onClick={() => navigate(-1)} />
 
       <div className="mt-6 flex flex-col items-center text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success text-[28px] text-white">

@@ -1,4 +1,3 @@
-import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Loader, Screen } from "@/components/ui";
@@ -19,7 +18,6 @@ import { formatPhpFromUsdcMinor, formatUsdc } from "@/lib/format";
 // from Home. (Parity, cont.74: no crypto-wallet row.)
 export function Account() {
   const navigate = useNavigate();
-  const { logout } = usePrivy();
   const usdPhp = useUsdPhp();
   const [balance, setBalance] = useState<BalanceResponse | null>(null);
   const [ach, setAch] = useState<AchAccountResponse | null>(null);
@@ -63,22 +61,7 @@ export function Account() {
   const spendable = balance?.totals.spendableUsdc ?? "0";
 
   return (
-    <Screen
-      footer={
-        <Button
-          label="Sign out"
-          className="!bg-field !text-danger"
-          onClick={async () => {
-            try {
-              await logout();
-            } catch {
-              // best-effort
-            }
-            navigate("/login", { replace: true });
-          }}
-        />
-      }
-    >
+    <Screen>
       <ScreenHeader title="Accounts" onBack={() => navigate("/home")} />
 
       <p className="mt-4 text-center font-sans text-[46px] font-extrabold leading-none tracking-[-0.02em] text-ink">

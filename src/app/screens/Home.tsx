@@ -11,7 +11,7 @@ import {
   type TxView,
 } from "@/lib/api";
 import { useUsdPhp } from "@/lib/fx";
-import { formatPhpFromUsdcMinor, formatUsdc } from "@/lib/format";
+import { formatPhpFromUsdcMinor, formatUsdc, isHiddenFailedTx } from "@/lib/format";
 
 // Phase-3 dashboard for a fully-onboarded user, ported to faithfully match the
 // mobile Home (FE/app/(tabs)/home.tsx): a "Banking" header (no greeting eyebrow,
@@ -37,7 +37,9 @@ export function Home() {
         setError(
           bal.reason instanceof Error ? bal.reason.message : "Couldn't load your balance.",
         );
-      setTxns(tx.status === "fulfilled" ? tx.value.transactions : []);
+      setTxns(
+        tx.status === "fulfilled" ? tx.value.transactions.filter((t) => !isHiddenFailedTx(t)) : [],
+      );
       if (achRes.status === "fulfilled") setAch(achRes.value);
     })();
   }, []);

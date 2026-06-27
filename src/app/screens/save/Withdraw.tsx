@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Loader, Screen } from "@/components/ui";
+import { BackChevron, Button, Loader, Screen } from "@/components/ui";
 import { api, type YieldStatusResponse } from "@/lib/api";
 import { formatUsdc } from "@/lib/format";
 
@@ -40,9 +40,7 @@ export function SaveWithdraw() {
         </div>
       }
     >
-      <button onClick={() => navigate(-1)} className="self-start text-[14px] text-accent">
-        ← Back
-      </button>
+      <BackChevron onClick={() => navigate(-1)} />
       <div className="mt-10 flex flex-col items-center gap-2 text-center">
         <p className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">YOUR SAVE BALANCE</p>
         <p className="mt-2 font-sans text-[52px] font-extrabold tracking-[-0.02em] leading-none text-ink">{balance}</p>

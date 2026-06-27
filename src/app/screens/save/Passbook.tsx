@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PassbookRow } from "@/components/PassbookRow";
-import { Loader, Screen } from "@/components/ui";
+import { BackChevron, Loader, Screen } from "@/components/ui";
 import { api, ApiError, type YieldPassbookEntry } from "@/lib/api";
 
 // Full Save passbook (L1) — every deposit / interest / withdrawal line item.
@@ -24,9 +24,7 @@ export function SavePassbook() {
 
   return (
     <Screen>
-      <button onClick={() => navigate(-1)} className="self-start text-[14px] text-accent">
-        ← Back
-      </button>
+      <BackChevron onClick={() => navigate(-1)} />
       <h1 className="mt-4 font-serif text-[24px] text-ink">Passbook</h1>
 
       {error ? (

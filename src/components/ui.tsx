@@ -65,6 +65,32 @@ export function Sheet({ children, onClose }: { children: ReactNode; onClose: () 
   );
 }
 
+// Bare back control — just a left chevron, no "Back" label and no title. Used at
+// the top of pushed screens that don't carry a ScreenHeader title. (cont.150)
+export function BackChevron({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label="Back"
+      className="-ml-1 self-start p-1 text-ink active:opacity-60"
+    >
+      <svg
+        width={26}
+        height={26}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+    </button>
+  );
+}
+
 export function Button({
   label,
   loading,

@@ -156,8 +156,33 @@ const TX_LABELS: Record<string, string> = {
   cashback_redeem: "Cashback redeemed",
   reward: "Referral reward",
 };
+/** Uppercase the first character only ("yield deposit" → "Yield deposit"). */
+export function capitalizeFirst(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
 export function txLabel(kind: string): string {
-  return TX_LABELS[kind] ?? kind.replace(/_/g, " ");
+  return TX_LABELS[kind] ?? capitalizeFirst(kind.replace(/_/g, " "));
+}
+
+// Activity rows for add-money / Save / Send that FAILED are hidden from the feed
+// (the records stay in the DB — this is a display-only filter, web client only).
+// Card declines are intentionally NOT here: they stay visible. (cont.150)
+const HIDE_WHEN_FAILED = new Set([
+  "fund_in", "ph_onramp", "fund_failed", // add money
+  "yield_deposit", "yield_withdraw", // Save
+  "remit", "remit_failed", // Send
+]);
+export function isHiddenFailedTx(t: { kind: string; status: string }): boolean {
+  return t.status === "failed" && HIDE_WHEN_FAILED.has(t.kind);
+}
+
+/** True when a 6dp USDC minor-unit amount rounds to $0.00 at 2 decimal places. */
+export function roundsToZeroUsdc(minor: string): boolean {
+  return Math.abs(Number(minor)) < 5000; // < $0.005
+}
+/** True when an interest amount rounds to $0.00 even at the 4dp interest display. */
+export function roundsToZeroInterest(minor: string): boolean {
+  return Math.abs(Number(minor)) < 50; // < $0.00005
 }
 
 export function formatDate(iso: string): string {
@@ -191,7 +216,7 @@ export function formatDateTime(iso: string): string {
 export function txDisplayName(t: { kind: string; metadata?: Record<string, unknown> }): string {
   const m = t.metadata ?? {};
   const name = m.displayName ?? m.counterparty ?? m.merchant;
-  if (typeof name === "string" && name.trim()) return name.trim();
+  if (typeof name === "string" && name.trim()) return capitalizeFirst(name.trim());
   return txLabel(t.kind);
 }
 
@@ -235,6 +260,26 @@ const DECLINE_REASON_LABELS: Record<string, string> = {
 export function declineReasonLabel(reason?: string | null): string {
   if (!reason) return "Declined";
   return DECLINE_REASON_LABELS[reason] ?? "Declined";
+}
+
+// Friendly copy for non-card failure reasons (fund-in / Save / remit). Falls back
+// to the card-decline map, then a humanised version of the raw reason code.
+const FAILURE_REASON_LABELS: Record<string, string> = {
+  vendor_deposit_failed: "Deposit couldn't be completed",
+  vendor_withdraw_failed: "Withdrawal couldn't be completed",
+  insufficient_funds: "Not enough balance",
+  insufficient_balance: "Not enough balance",
+  payout_failed: "Payout couldn't be completed",
+  reversed: "This was reversed",
+  expired: "This expired before it completed",
+};
+export function failureReasonLabel(reason?: string | null): string {
+  if (!reason) return "This didn't go through";
+  return (
+    FAILURE_REASON_LABELS[reason] ??
+    DECLINE_REASON_LABELS[reason] ??
+    capitalizeFirst(reason.replace(/_/g, " "))
+  );
 }
 
 const CARD_STATUS_LABELS: Record<string, string> = {

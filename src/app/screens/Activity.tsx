@@ -5,6 +5,7 @@ import { ReceiptIcon } from "@/components/icons";
 import { TabHeader } from "@/components/TabHeader";
 import { Loader, TabScreen } from "@/components/ui";
 import { api, ApiError, type TxView } from "@/lib/api";
+import { isHiddenFailedTx } from "@/lib/format";
 
 const PAGE = 25;
 
@@ -20,7 +21,7 @@ export function Activity() {
     (async () => {
       try {
         const res = await api.getTransactions({ limit: PAGE });
-        setTxns(res.transactions);
+        setTxns(res.transactions.filter((t) => !isHiddenFailedTx(t)));
         setCursor(res.nextCursor);
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "Couldn't load activity.");
@@ -34,7 +35,7 @@ export function Activity() {
     setLoadingMore(true);
     try {
       const res = await api.getTransactions({ limit: PAGE, cursor });
-      setTxns((p) => [...(p ?? []), ...res.transactions]);
+      setTxns((p) => [...(p ?? []), ...res.transactions.filter((t) => !isHiddenFailedTx(t))]);
       setCursor(res.nextCursor);
     } catch {
       // keep what we have

@@ -12,7 +12,7 @@ import {
   type YieldPassbookEntry,
   type YieldStatusResponse,
 } from "@/lib/api";
-import { formatUsdc } from "@/lib/format";
+import { formatUsdc, roundsToZeroInterest, roundsToZeroUsdc } from "@/lib/format";
 
 // "$1,234.56" → ["$1,234", ".56"] so the cents can render smaller (ref design).
 function splitAmount(minor: string): [string, string] {
@@ -41,7 +41,12 @@ export function Save() {
         api.getYieldPassbook().catch(() => ({ entries: [] as YieldPassbookEntry[] })),
       ]);
       setStatus(s);
-      setRecent(passbook.entries.slice(0, 3));
+      // Hide zero ("+$0.00") interest rows — they carry no info. (cont.150)
+      setRecent(
+        passbook.entries
+          .filter((e) => !(e.type === "interest" && roundsToZeroInterest(e.amountMinor)))
+          .slice(0, 3),
+      );
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't load your savings.");
@@ -126,7 +131,7 @@ export function Save() {
           <p className="text-[14px] text-ink-soft">Finish identity verification to start earning.</p>
         </div>
       ) : status.optedIn ? (
-        // ── Post-opt-in home (green SAVE WALLET card + stats + card upsell) ──
+        // ── Post-opt-in home (green SAVE WALLET card + stats + recent activity) ──
         <>
           <div className="mt-4 rounded-2xl bg-success p-5 text-white">
             <p className="text-[12px] font-bold uppercase tracking-wider text-white/85">
@@ -162,27 +167,31 @@ export function Save() {
             </div>
           </div>
 
-          <div className="mt-4 flex rounded-2xl border border-border bg-surface py-5 shadow-card">
-            <div className="flex flex-1 flex-col items-center gap-0.5">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
-                {home.thisMonthLabel}
-              </p>
-              <p className="mt-1 text-[22px] font-bold text-success">
-                {formatUsdc(status.interestThisMonthMinor)}
-              </p>
-              <p className="text-[12px] text-ink-faint">{home.interestEarnedLabel}</p>
+          {/* Interest-earned stats — hidden entirely until there's lifetime interest
+              to show, so a brand-new Save wallet doesn't display "$0.00". (cont.150) */}
+          {!roundsToZeroUsdc(status.interestLifetimeMinor) ? (
+            <div className="mt-4 flex rounded-2xl border border-border bg-surface py-5 shadow-card">
+              <div className="flex flex-1 flex-col items-center gap-0.5">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
+                  {home.thisMonthLabel}
+                </p>
+                <p className="mt-1 text-[22px] font-bold text-success">
+                  {formatUsdc(status.interestThisMonthMinor)}
+                </p>
+                <p className="text-[12px] text-ink-faint">{home.interestEarnedLabel}</p>
+              </div>
+              <div className="my-1 w-px bg-border" />
+              <div className="flex flex-1 flex-col items-center gap-0.5">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
+                  {home.lifetimeLabel}
+                </p>
+                <p className="mt-1 text-[22px] font-bold text-success">
+                  {formatUsdc(status.interestLifetimeMinor)}
+                </p>
+                <p className="text-[12px] text-ink-faint">{home.interestEarnedLabel}</p>
+              </div>
             </div>
-            <div className="my-1 w-px bg-border" />
-            <div className="flex flex-1 flex-col items-center gap-0.5">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
-                {home.lifetimeLabel}
-              </p>
-              <p className="mt-1 text-[22px] font-bold text-success">
-                {formatUsdc(status.interestLifetimeMinor)}
-              </p>
-              <p className="text-[12px] text-ink-faint">{home.interestEarnedLabel}</p>
-            </div>
-          </div>
+          ) : null}
 
           <div className="mt-4 rounded-2xl border border-border bg-surface px-5 py-2 shadow-card">
             <div className="flex items-center justify-between pb-1 pt-2">
@@ -207,27 +216,8 @@ export function Save() {
             )}
           </div>
 
-          <button
-            onClick={() => navigate("/card")}
-            className="relative mt-6 block w-full rounded-2xl border border-border bg-surface p-5 pt-6 text-left shadow-card"
-          >
-            <span className="absolute -top-3 left-5 flex items-center gap-1 rounded-pill bg-accent px-3 py-1.5 text-[13px] font-bold text-white">
-              <span aria-hidden>↑</span>
-              {home.upsell.badge}
-            </span>
-            <div className="flex items-center gap-3">
-              <div className="flex h-[34px] w-[52px] items-center justify-center rounded-md bg-[#1B2A4A]">
-                <div className="h-3.5 w-3.5 rounded-[3px] bg-accent" />
-              </div>
-              <div className="flex-1">
-                <p className="text-[16px] font-bold text-ink">{home.upsell.title}</p>
-                <p className="text-[13px] leading-[18px] text-ink-soft">{home.upsell.body}</p>
-              </div>
-              <span className="text-[20px] text-ink-faint" aria-hidden>
-                ›
-              </span>
-            </div>
-          </button>
+          {/* The "Apply for the Mana Card" upsell was removed here — the card is
+              issued by default at provisioning (D25), so the prompt never applied. */}
         </>
       ) : (
         // ── Pre-opt-in intro card ("Open a Save wallet and earn N% APY") ──
