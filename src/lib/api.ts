@@ -290,6 +290,30 @@ export interface PhysicalCardQuote {
     countryCode: string;
   } | null;
 }
+// Saved physical-card delivery address (GET/POST/PATCH /v1/shipping-addresses). The
+// reusable address book backing the order screen (D-shipaddr).
+export interface ShippingAddress {
+  id: string;
+  label: string | null;
+  line1: string;
+  line2: string | null;
+  city: string;
+  region: string;
+  postalCode: string;
+  countryCode: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+export interface ShippingAddressInput {
+  label?: string | null;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  region: string;
+  postalCode: string;
+  countryCode: string;
+  isDefault?: boolean;
+}
 // BE-driven Card PDP content (GET /v1/cards/offer) — all copy from the backend.
 export interface CardBenefitRow {
   icon: string; // stable key → mapped to an icon/visual on the client
@@ -834,12 +858,35 @@ export const api = {
       `/v1/cards/physical/quote${countryCode ? `?countryCode=${encodeURIComponent(countryCode)}` : ""}`,
       { auth: true },
     ),
-  orderPhysicalCard: (address: PhysicalAddress, idempotencyKey: string) =>
+  orderPhysicalCard: (
+    address: PhysicalAddress & { shippingAddressId?: string },
+    idempotencyKey: string,
+  ) =>
     request<{ card: CardView }>("/v1/cards/order-physical", {
       method: "POST",
       body: address,
       auth: true,
       idempotencyKey,
+    }),
+  // Shipping-address book (D-shipaddr).
+  getShippingAddresses: () =>
+    request<{ addresses: ShippingAddress[] }>("/v1/shipping-addresses", { auth: true }),
+  createShippingAddress: (body: ShippingAddressInput) =>
+    request<{ address: ShippingAddress }>("/v1/shipping-addresses", {
+      method: "POST",
+      body,
+      auth: true,
+    }),
+  updateShippingAddress: (id: string, body: ShippingAddressInput) =>
+    request<{ address: ShippingAddress }>(`/v1/shipping-addresses/${id}`, {
+      method: "PATCH",
+      body,
+      auth: true,
+    }),
+  deleteShippingAddress: (id: string) =>
+    request<{ id: string; deleted: true }>(`/v1/shipping-addresses/${id}`, {
+      method: "DELETE",
+      auth: true,
     }),
   // `pin` = account MPIN; `cardPin` = the new 4-digit physical-card PIN.
   setCardPin: (id: string, pin: string, cardPin: string) =>

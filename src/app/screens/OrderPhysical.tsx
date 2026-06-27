@@ -8,6 +8,8 @@ import {
   newIdempotencyKey,
   PHONE_COUNTRIES,
   type PhysicalCardQuote,
+  type ShippingAddress,
+  type ShippingAddressInput,
 } from "@/lib/api";
 import { formatUsdc } from "@/lib/format";
 
@@ -43,56 +45,41 @@ function countryMeta(iso: string): { flag: string; name: string } {
   return { flag: c?.flag ?? "", name: c?.name ?? iso };
 }
 
+function draftFrom(a: ShippingAddress): AddrDraft {
+  return {
+    line1: a.line1,
+    line2: a.line2 ?? "",
+    city: a.city,
+    region: a.region,
+    postalCode: a.postalCode,
+    countryCode: a.countryCode,
+  };
+}
+
 // Confirm-address + order screen for the PHYSICAL card (D-physical) — web parity with
-// FE/app/card/order-physical.tsx. Loads a quote (country drives the fee + shipping) and
-// prefills the residential address from onboarding. The L1 view shows the chosen
-// shipping address as a card (Edit / Add new address → the form mode); the address is
-// held in client state and sent with the order (no address book, no extra BE). Either
-// orders (fee debited from spendable) or routes to Add money when the balance is short.
-// Phone is pulled silently server-side.
+// FE/app/card/order-physical.tsx. Backed by the saved shipping-address book
+// (/v1/shipping-addresses, D-shipaddr): list saved addresses, pick one, add / edit /
+// remove (persisted), then order — the chosen `shippingAddressId` is sent so the BE
+// links + snapshots it. A quote (country drives fee + shipping) follows the selected
+// address. Phone is pulled silently server-side.
 export function OrderPhysical() {
   const navigate = useNavigate();
   const [idempotencyKey] = useState(newIdempotencyKey);
 
   const [quote, setQuote] = useState<PhysicalCardQuote | null>(null);
+  const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // The committed shipping address (shown on the L1 card, sent with the order).
-  const [addr, setAddr] = useState<AddrDraft>(EMPTY_ADDR);
-  // "view" = address card + add/edit; "form" = the line-input editor.
+  // "view" = address list + add; "form" = the line-input editor.
   const [mode, setMode] = useState<"view" | "form">("view");
-  const [formTitle, setFormTitle] = useState("Edit address");
+  const [editingId, setEditingId] = useState<string | null>(null); // null = adding new
   const [draft, setDraft] = useState<AddrDraft>(EMPTY_ADDR);
 
+  const [busy, setBusy] = useState(false); // save/delete in flight
   const [submitting, setSubmitting] = useState(false);
   const [ordered, setOrdered] = useState<PhysicalCardQuote | null>(null);
-
-  // Initial quote (residential country) → prefill the committed address.
-  useEffect(() => {
-    (async () => {
-      try {
-        const q = await api.getPhysicalQuote();
-        setQuote(q);
-        if (q.address) {
-          setAddr({
-            line1: q.address.line1,
-            line2: q.address.line2 ?? "",
-            city: q.address.city,
-            region: q.address.region,
-            postalCode: q.address.postalCode,
-            countryCode: q.address.countryCode,
-          });
-        } else {
-          setAddr((a) => ({ ...a, countryCode: q.countryCode }));
-        }
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : "Couldn't load the order details.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
 
   // Re-quote when the chosen country changes (fee + shipping method follow the country).
   const reQuote = useCallback(async (iso: string) => {
@@ -104,27 +91,96 @@ export function OrderPhysical() {
     }
   }, []);
 
-  const hasAddress = isValid(addr);
+  // Initial load: quote (residential country) + the saved address book in parallel.
+  useEffect(() => {
+    (async () => {
+      try {
+        const [q, list] = await Promise.all([api.getPhysicalQuote(), api.getShippingAddresses()]);
+        setQuote(q);
+        setAddresses(list.addresses);
+        const sel = list.addresses.find((a) => a.isDefault) ?? list.addresses[0] ?? null;
+        setSelectedId(sel?.id ?? null);
+        if (sel && sel.countryCode.toUpperCase() !== q.countryCode.toUpperCase()) {
+          reQuote(sel.countryCode);
+        }
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Couldn't load the order details.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [reQuote]);
 
-  const openEdit = () => {
-    setDraft(addr);
-    setFormTitle("Edit address");
+  const selected = addresses.find((a) => a.id === selectedId) ?? null;
+
+  const selectAddress = (a: ShippingAddress) => {
+    setSelectedId(a.id);
+    if (quote && a.countryCode.toUpperCase() !== quote.countryCode.toUpperCase()) reQuote(a.countryCode);
+  };
+
+  const openEdit = (a: ShippingAddress) => {
+    setEditingId(a.id);
+    setDraft(draftFrom(a));
     setMode("form");
   };
   const openAdd = () => {
-    setDraft({ ...EMPTY_ADDR, countryCode: addr.countryCode });
-    setFormTitle("New address");
+    setEditingId(null);
+    setDraft({ ...EMPTY_ADDR, countryCode: selected?.countryCode ?? quote?.countryCode ?? "US" });
     setMode("form");
   };
-  const saveDraft = () => {
-    const prevCountry = addr.countryCode;
-    setAddr(draft);
-    if (draft.countryCode !== prevCountry) reQuote(draft.countryCode);
-    setMode("view");
+
+  const saveDraft = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const body: ShippingAddressInput = {
+        line1: draft.line1.trim(),
+        line2: draft.line2.trim() || null,
+        city: draft.city.trim(),
+        region: draft.region.trim(),
+        postalCode: draft.postalCode.trim(),
+        countryCode: draft.countryCode,
+      };
+      const res = editingId
+        ? await api.updateShippingAddress(editingId, body)
+        : await api.createShippingAddress(body);
+      const list = await api.getShippingAddresses();
+      setAddresses(list.addresses);
+      setSelectedId(res.address.id);
+      if (quote && res.address.countryCode.toUpperCase() !== quote.countryCode.toUpperCase()) {
+        reQuote(res.address.countryCode);
+      }
+      setMode("view");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't save the address. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeAddress = async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.deleteShippingAddress(id);
+      const list = await api.getShippingAddresses();
+      setAddresses(list.addresses);
+      if (selectedId === id) {
+        const next = list.addresses.find((a) => a.isDefault) ?? list.addresses[0] ?? null;
+        setSelectedId(next?.id ?? null);
+        if (next && quote && next.countryCode.toUpperCase() !== quote.countryCode.toUpperCase()) {
+          reQuote(next.countryCode);
+        }
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't remove the address. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onSubmit = async () => {
-    if (!quote) return;
+    if (!quote || !selected) return;
     if (!quote.sufficient) {
       navigate("/add-money");
       return;
@@ -134,12 +190,13 @@ export function OrderPhysical() {
     try {
       await api.orderPhysicalCard(
         {
-          line1: addr.line1.trim(),
-          line2: addr.line2.trim() || undefined,
-          city: addr.city.trim(),
-          region: addr.region.trim(),
-          postalCode: addr.postalCode.trim(),
-          countryCode: addr.countryCode,
+          line1: selected.line1,
+          line2: selected.line2 ?? undefined,
+          city: selected.city,
+          region: selected.region,
+          postalCode: selected.postalCode,
+          countryCode: selected.countryCode,
+          shippingAddressId: selected.id,
         },
         idempotencyKey,
       );
@@ -189,46 +246,26 @@ export function OrderPhysical() {
     return (
       <Screen
         footer={
-          <Button label="Save address" onClick={saveDraft} disabled={!isValid(draft)} />
+          <Button
+            label={editingId ? "Save changes" : "Add address"}
+            onClick={saveDraft}
+            disabled={!isValid(draft)}
+            loading={busy}
+          />
         }
       >
-        <ScreenHeader title={formTitle} onBack={() => setMode("view")} />
+        <ScreenHeader title={editingId ? "Edit address" : "New address"} onBack={() => setMode("view")} />
 
         <div className="mt-4 space-y-5">
-          <LineField
-            label="Address line 1"
-            value={draft.line1}
-            onChange={(v) => setDraft({ ...draft, line1: v })}
-            placeholder="Street address"
-          />
-          <LineField
-            label="Address line 2 (optional)"
-            value={draft.line2}
-            onChange={(v) => setDraft({ ...draft, line2: v })}
-            placeholder="Apt, suite, unit"
-          />
-          <LineField
-            label="City"
-            value={draft.city}
-            onChange={(v) => setDraft({ ...draft, city: v })}
-            placeholder="City"
-          />
+          <LineField label="Address line 1" value={draft.line1} onChange={(v) => setDraft({ ...draft, line1: v })} placeholder="Street address" />
+          <LineField label="Address line 2 (optional)" value={draft.line2} onChange={(v) => setDraft({ ...draft, line2: v })} placeholder="Apt, suite, unit" />
+          <LineField label="City" value={draft.city} onChange={(v) => setDraft({ ...draft, city: v })} placeholder="City" />
           <div className="flex gap-4">
             <div className="flex-1">
-              <LineField
-                label="State / Region"
-                value={draft.region}
-                onChange={(v) => setDraft({ ...draft, region: v })}
-                placeholder="State"
-              />
+              <LineField label="State / Region" value={draft.region} onChange={(v) => setDraft({ ...draft, region: v })} placeholder="State" />
             </div>
             <div className="flex-1">
-              <LineField
-                label="Postal code"
-                value={draft.postalCode}
-                onChange={(v) => setDraft({ ...draft, postalCode: v })}
-                placeholder="ZIP"
-              />
+              <LineField label="Postal code" value={draft.postalCode} onChange={(v) => setDraft({ ...draft, postalCode: v })} placeholder="ZIP" />
             </div>
           </div>
           <div>
@@ -245,15 +282,16 @@ export function OrderPhysical() {
               ))}
             </select>
           </div>
+
+          {error ? <p className="text-[14px] text-danger">{error}</p> : null}
         </div>
       </Screen>
     );
   }
 
-  // ── View mode: address card + add-new + fee + CTA. ──
+  // ── View mode: address list + add-new + fee + CTA. ──
   const feeLabel = quote ? formatUsdc(quote.feeMinor) : "";
   const ctaLabel = quote?.sufficient ? `Order for ${feeLabel}` : "Add money";
-  const cm = countryMeta(addr.countryCode);
 
   return (
     <Screen
@@ -261,43 +299,35 @@ export function OrderPhysical() {
         <Button
           label={ctaLabel}
           onClick={onSubmit}
-          disabled={!hasAddress || !quote}
+          disabled={!selected || !quote || busy}
           loading={submitting}
         />
       }
     >
       <ScreenHeader title="Confirm address" fallback="/card" />
       <p className="mt-1 mb-3 text-[14px] leading-5 text-ink-soft">
-        We'll mail your physical card to this address.
+        We'll mail your physical card to the selected address.
       </p>
 
-      {hasAddress ? (
-        <div className="rounded-card border border-border bg-surface p-4 shadow-card">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 text-[15px] leading-6 text-ink">
-              <p>{[addr.line1, addr.line2].filter((s) => s.trim()).join(", ")}</p>
-              <p>
-                {[addr.city, [addr.region, addr.postalCode].filter((s) => s.trim()).join(" ")]
-                  .filter((s) => s.trim())
-                  .join(", ")}
-              </p>
-              <p className="text-ink-soft">
-                {cm.flag} {cm.name}
-              </p>
-            </div>
-            <button
-              onClick={openEdit}
-              className="shrink-0 text-[14px] font-semibold text-accent active:opacity-50"
-            >
-              Edit
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <div className="space-y-3">
+        {addresses.map((a) => (
+          <AddressCard
+            key={a.id}
+            address={a}
+            selected={a.id === selectedId}
+            canRemove={addresses.length > 1}
+            disabled={busy}
+            onSelect={() => selectAddress(a)}
+            onEdit={() => openEdit(a)}
+            onRemove={() => removeAddress(a.id)}
+          />
+        ))}
+      </div>
 
       <button
         onClick={openAdd}
-        className="mt-3 flex w-full items-center gap-2 rounded-card border border-dashed border-border bg-transparent p-4 text-[15px] font-semibold text-accent active:opacity-60"
+        disabled={busy}
+        className="mt-3 flex w-full items-center gap-2 rounded-card border border-dashed border-border bg-transparent p-4 text-[15px] font-semibold text-accent active:opacity-60 disabled:opacity-40"
       >
         <span aria-hidden className="text-[18px] leading-none">
           ＋
@@ -328,6 +358,72 @@ export function OrderPhysical() {
 
       {error ? <p className="mt-3 text-[14px] text-danger">{error}</p> : null}
     </Screen>
+  );
+}
+
+function AddressCard({
+  address: a,
+  selected,
+  canRemove,
+  disabled,
+  onSelect,
+  onEdit,
+  onRemove,
+}: {
+  address: ShippingAddress;
+  selected: boolean;
+  canRemove: boolean;
+  disabled: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const cm = countryMeta(a.countryCode);
+  return (
+    <div
+      className={`rounded-card border bg-surface p-4 shadow-card ${
+        selected ? "border-accent" : "border-border"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <button
+          onClick={onSelect}
+          disabled={disabled}
+          aria-label="Select address"
+          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+            selected ? "border-accent" : "border-border"
+          }`}
+        >
+          {selected ? <span className="h-2.5 w-2.5 rounded-full bg-accent" /> : null}
+        </button>
+        <button onClick={onSelect} disabled={disabled} className="min-w-0 flex-1 text-left text-[15px] leading-6 text-ink">
+          {a.isDefault ? (
+            <span className="mb-1 inline-block rounded-pill bg-success/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-success">
+              Default
+            </span>
+          ) : null}
+          <p>{[a.line1, a.line2].filter((s) => s && s.trim()).join(", ")}</p>
+          <p>
+            {[a.city, [a.region, a.postalCode].filter((s) => s && s.trim()).join(" ")]
+              .filter((s) => s && s.trim())
+              .join(", ")}
+          </p>
+          <p className="text-ink-soft">
+            {cm.flag} {cm.name}
+          </p>
+        </button>
+      </div>
+      <div className="mt-3 flex items-center gap-4 pl-8">
+        <button onClick={onEdit} disabled={disabled} className="text-[14px] font-semibold text-accent active:opacity-50 disabled:opacity-40">
+          Edit
+        </button>
+        {canRemove ? (
+          <button onClick={onRemove} disabled={disabled} className="text-[14px] font-semibold text-ink-soft active:opacity-50 disabled:opacity-40">
+            Remove
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
