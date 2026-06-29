@@ -28,17 +28,23 @@ export function OnrampReview() {
   })();
 
   const { methods, find: findMethod } = useOnrampMethods();
+  const bankMethods = (methods ?? []).filter(isBankMethod);
 
-  // The incoming code is a DEFAULT, not a real choice — the web onramp entry is the
-  // bank rail, so we require an explicit bank pick before confirm. A wallet rail (if
-  // ever routed here) routes through its single fixed code, so we prefill it.
+  // The incoming code is a DEFAULT, not a real choice. When the live deposit catalog
+  // offers more than one bank, we require an explicit pick (via the sheet) before confirm.
+  // But today's PROD catalog returns a SINGLE generic "Bank Transfer" — there's nothing to
+  // choose, so we auto-select it and hide the picker (the sheet re-appears for free once the
+  // catalog grows to >1 bank). A wallet rail (if ever routed here) has one fixed code too.
   const incoming = findMethod(paymentCode);
   const incomingIsBank = incoming ? isBankMethod(incoming) : true;
+  const multiBank = bankMethods.length > 1;
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [bankSheetOpen, setBankSheetOpen] = useState(false);
   useEffect(() => {
-    if (incoming && !incomingIsBank && selectedCode === null) setSelectedCode(paymentCode);
-  }, [incoming, incomingIsBank, selectedCode, paymentCode]);
+    if (selectedCode !== null) return;
+    if (incoming && !incomingIsBank) setSelectedCode(paymentCode);
+    else if (incomingIsBank && bankMethods.length === 1) setSelectedCode(bankMethods[0].paymentCode);
+  }, [incoming, incomingIsBank, selectedCode, paymentCode, bankMethods]);
 
   // Price for the picked method; before a pick, show a rate for the incoming default.
   const quoteFor = selectedCode ?? paymentCode;
@@ -48,7 +54,6 @@ export function OnrampReview() {
   const [error, setError] = useState<string | null>(null);
   const idemKey = useRef(newIdempotencyKey()).current;
 
-  const bankMethods = (methods ?? []).filter(isBankMethod);
   const selectedMethod = selectedCode ? findMethod(selectedCode) : undefined;
   const payWithLabel = !selectedCode
     ? "Select bank"
@@ -139,7 +144,7 @@ export function OnrampReview() {
           label="Pay with"
           value={payWithLabel}
           placeholder={!selectedCode}
-          onClick={incomingIsBank && !busy ? () => setBankSheetOpen(true) : undefined}
+          onClick={incomingIsBank && multiBank && !busy ? () => setBankSheetOpen(true) : undefined}
         />
         <Row
           label="Rate"
