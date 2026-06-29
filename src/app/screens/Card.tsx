@@ -278,7 +278,7 @@ export function Card() {
   }
 
   async function submitPin() {
-    if (!card || !pinIntent || pin.length !== 6) return;
+    if (!card || !pinIntent || pin.length !== 4) return;
     setPinBusy(true);
     setPinErr(null);
     try {
@@ -578,10 +578,10 @@ export function Card() {
             autoFocus
             inputMode="numeric"
             type="password"
-            maxLength={6}
+            maxLength={4}
             value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="••••••"
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="••••"
             className="mt-4 h-14 w-full rounded-card border border-border bg-field text-center text-2xl tracking-[10px] text-ink outline-none focus:border-ink"
           />
           {pinErr ? <p className="mt-2 text-center text-sm text-danger">{pinErr}</p> : null}
@@ -590,7 +590,7 @@ export function Card() {
               label={pinIntent === "replace" ? "Replace card" : "Reveal"}
               onClick={submitPin}
               loading={pinBusy}
-              disabled={pin.length !== 6 || pinBusy}
+              disabled={pin.length !== 4 || pinBusy}
             />
           </div>
         </Overlay>
