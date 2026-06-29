@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Loader, Screen } from "@/components/ui";
-import { DocIcon, LogoutIcon } from "@/components/icons";
+import { DocIcon, HelpIcon, LogoutIcon } from "@/components/icons";
 import { api, type OnboardingState } from "@/lib/api";
 import { initialsOf } from "@/lib/format";
 import { appVersionLabel } from "@/lib/version";
@@ -68,6 +68,7 @@ export function More() {
             (not BE-driven) → removed for the v1 store build, matching mobile FE/app/menu.tsx. */}
         <div className="flex flex-col">
           <MenuRow icon={<DocIcon />} label="About" onClick={() => navigate("/about")} />
+          <MenuRow icon={<HelpIcon />} label="Help & Support" onClick={() => navigate("/help")} />
           <MenuRow icon={<LogoutIcon />} label="Log out" danger onClick={logoutAndGo} />
         </div>
       </div>

@@ -37,7 +37,7 @@ function devWebBlackbox(): string {
 }
 
 const SELECT_CLASS =
-  "h-[52px] w-full rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink";
+  "app-select h-[52px] w-full rounded-card border border-border bg-field pl-4 pr-11 text-base text-ink outline-none focus:border-ink";
 
 export function Kyc() {
   const navigate = useNavigate();
@@ -225,7 +225,7 @@ export function Kyc() {
                   )
                 }
                 placeholder={isUS ? "9-digit National ID (SSN)" : "National ID or passport no."}
-                type="password"
+                type="text"
               />
               <p className="mt-1 text-[12px] text-ink-faint">
                 Used only for identity verification by our regulated partner.

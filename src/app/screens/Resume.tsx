@@ -16,14 +16,30 @@ export function Resume() {
   useEffect(() => {
     if (!ready || !authenticated || ran.current) return;
     ran.current = true;
+    let cancelled = false;
     (async () => {
-      try {
-        const state = await api.getState();
-        navigate(stepToRoute(state.user.onboardingStep), { replace: true });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't load your account.");
+      // A just-verified new user can land here (the guest-gate redirects to "/" the
+      // instant Privy authenticates) a beat BEFORE signup has created their BE row —
+      // getState would 404/401. Retry briefly so that transient miss shows the
+      // "Getting things ready…" spinner instead of flashing the error screen; only a
+      // persistent failure surfaces the error.
+      for (let attempt = 0; attempt < 5 && !cancelled; attempt++) {
+        try {
+          const state = await api.getState();
+          if (!cancelled) navigate(stepToRoute(state.user.onboardingStep), { replace: true });
+          return;
+        } catch (e) {
+          if (attempt === 4) {
+            if (!cancelled) setError(e instanceof Error ? e.message : "Couldn't load your account.");
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 600));
+        }
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [ready, authenticated, navigate]);
 
   if (!ready) return <Spinner />;

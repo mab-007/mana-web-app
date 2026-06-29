@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* Native <select> arrows render inconsistently across browsers (the "weird"
+     double/OS chevrons). Strip the native control and paint one clean chevron
+     that matches the muted ink palette. Pair with pr-11 for clearance. */
+  .app-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%239a8f80' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 18px 18px;
+  }
+}
+
 html,
 body {
   margin: 0;
