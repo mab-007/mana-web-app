@@ -146,7 +146,7 @@ function ErrorState({
       : kind === "not_provisioned"
         ? {
             title: "Setting up your USD account",
-            body: "Your USD account is still being created. This usually takes a moment — check back shortly.",
+            body: "Your USD account is still being created. This usually takes a moment - check back shortly.",
             cta: "Try again",
             action: onRetry,
           }

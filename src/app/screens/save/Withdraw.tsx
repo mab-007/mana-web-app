@@ -26,7 +26,7 @@ export function SaveWithdraw() {
 
   if (loading) return <Loader label="Loading…" />;
 
-  const balance = status ? formatUsdc(status.currentValueMinor) : "—";
+  const balance = status ? formatUsdc(status.currentValueMinor) : "-";
 
   return (
     <Screen
@@ -45,7 +45,7 @@ export function SaveWithdraw() {
         <p className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">YOUR SAVE BALANCE</p>
         <p className="mt-2 font-sans text-[52px] font-extrabold tracking-[-0.02em] leading-none text-ink">{balance}</p>
         <p className="mt-6 rounded-card border border-border bg-surface p-5 text-[15px] leading-[22px] text-ink-soft shadow-card">
-          We'll move your full Save balance — your money plus all the interest you've earned — back to
+          We'll move your full Save balance - your money plus all the interest you've earned - back to
           your main wallet. Saving is all-or-nothing, so this closes your Save wallet.
         </p>
       </div>

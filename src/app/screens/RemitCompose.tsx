@@ -113,10 +113,8 @@ export function RemitCompose() {
       setFormError("Enter an amount to send.");
       return null;
     }
-    if (spendableMinor !== null && minor > spendableMinor) {
-      setFormError(`That's more than your ${formatUsdc(spendableMinor.toString())} balance.`);
-      return null;
-    }
+    // NB: an over-balance amount is allowed to price here - the user sees our rate
+    // on the review page, where the insufficient-funds check gates the actual send.
     const base: QuoteBody = { destRail: selected.rail, amountUsdc: minor.toString() };
     if (isBank) {
       if (!bankCode || !accountNumber.trim() || !accountHolder.trim()) {
@@ -198,7 +196,7 @@ export function RemitCompose() {
         if (fresh) {
           setSheetError(
             e.userCode === "rate_drift_exceeded"
-              ? "The rate moved — review the updated rate and tap Send now to confirm."
+              ? "The rate moved - review the updated rate and tap Send now to confirm."
               : "The rate just updated. Tap Send now to confirm.",
           );
         }
@@ -220,7 +218,14 @@ export function RemitCompose() {
     const toValue = `${quote.destRecipientName ? `${quote.destRecipientName} · ` : ""}${quote.destHandle ?? ""} (${remitRailLabel(quote.destRail)})`;
     return (
       <Screen
-        footer={<Button label={`Send now · ${phpLabel}`} onClick={confirm} loading={confirming || quoting} />}
+        footer={
+          <Button
+            label={overBalance ? "Insufficient balance" : `Send now · ${phpLabel}`}
+            onClick={confirm}
+            loading={confirming || quoting}
+            disabled={overBalance}
+          />
+        }
       >
         <div className="mb-2 flex items-center justify-between">
           <button onClick={backToForm} disabled={confirming} className="text-[18px] text-ink" aria-label="Back">
@@ -251,6 +256,12 @@ export function RemitCompose() {
           {expiresIn > 0 ? `Rate locked for ${expiresIn}s` : "Refreshing rate…"}
         </div>
 
+        {overBalance ? (
+          <p className="mt-3 text-center text-sm font-semibold text-danger">
+            More than your {formatUsdc((spendableMinor ?? 0n).toString())} balance. Add money to send this amount.
+          </p>
+        ) : null}
+
         {sheetError ? <p className="mt-3 text-center text-sm text-danger">{sheetError}</p> : null}
 
         <p className="mt-4 text-center text-[12px] leading-[18px] text-ink-faint">
@@ -264,7 +275,7 @@ export function RemitCompose() {
   // ── Compose form ──
   return (
     <Screen
-      footer={<Button label="Review transfer" onClick={review} loading={quoting} disabled={!selected || overBalance} />}
+      footer={<Button label="Review transfer" onClick={review} loading={quoting} disabled={!selected} />}
     >
       <div className="mb-2 flex items-center justify-between">
         <button onClick={() => navigate(-1)} className="text-[15px] text-accent">

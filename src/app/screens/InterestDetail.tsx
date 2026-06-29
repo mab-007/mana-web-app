@@ -73,7 +73,7 @@ export function InterestDetail() {
 
       <p className="mt-6 text-center text-[13px] leading-[19px] text-ink-faint">
         Interest accrues daily on your Save balance and is added to your wallet. The rate is variable
-        and not guaranteed — it isn't a bank deposit and isn't FDIC insured.
+        and not guaranteed - it isn't a bank deposit and isn't FDIC insured.
       </p>
     </Screen>
   );

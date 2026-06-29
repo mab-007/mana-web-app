@@ -56,7 +56,7 @@ export function CashbackCard({
         </p>
       ) : (
         <p className="mt-2 text-[13px] leading-[18px] text-ink-soft">
-          {formatUsdc(String(spendMinor))} of {formatUsdc(String(thresholdMinor))} spent this month —{" "}
+          {formatUsdc(String(spendMinor))} of {formatUsdc(String(thresholdMinor))} spent this month -{" "}
           {formatUsdc(String(remainingMinor))} more to your next tier.
         </p>
       )}

@@ -112,7 +112,7 @@ export function Home() {
           <div className="flex flex-col items-center gap-2 px-6 py-10 text-center text-ink-faint">
             <ReceiptIcon />
             <p className="max-w-xs text-[14px] leading-5 text-ink-soft">
-              No activity yet — when you add or send money, it'll show up here.
+              No activity yet - when you add or send money, it'll show up here.
             </p>
           </div>
         ) : (

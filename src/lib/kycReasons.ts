@@ -126,7 +126,7 @@ export function humanizeKycReason(
   if (buckets.has("region")) {
     return {
       headline: "Mana isn't in your area yet",
-      body: "We can't open an account in your current region right now. We're expanding fast — contact us and we'll let you know the moment we launch where you are.",
+      body: "We can't open an account in your current region right now. We're expanding fast - contact us and we'll let you know the moment we launch where you are.",
       fixable: false,
       items: [],
       contactSupport: true,
@@ -157,7 +157,7 @@ export function humanizeKycReason(
 /** Pre-filled support mailto so the team can triage with a code + reference. */
 export function supportMailto(raw: string | null | undefined): string {
   const codes = parseKycLabels(raw);
-  const subject = "Mana — help with my verification";
+  const subject = "Mana - help with my verification";
   const body = [
     "Hi Mana team,",
     "",

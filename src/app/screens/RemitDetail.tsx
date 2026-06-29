@@ -126,7 +126,7 @@ export function RemitDetail() {
         </p>
         {inFlight ? (
           <p className="mt-2 max-w-[320px] text-[13px] text-ink-soft">
-            Usually arrives in 5–7 minutes. You can close this — it keeps going.
+            Usually arrives in 5–7 minutes. You can close this - it keeps going.
           </p>
         ) : null}
       </div>
@@ -141,7 +141,7 @@ export function RemitDetail() {
 
       {isHeld(detail) ? (
         <div className="mt-5 rounded-card border border-warning bg-surface p-4 text-[14px] text-ink shadow-card">
-          The payout to your recipient didn't go through on the first try. Your money is safe — our team is completing
+          The payout to your recipient didn't go through on the first try. Your money is safe - our team is completing
           this transfer manually and you'll be updated shortly. There's no need to send again.
         </div>
       ) : isRefundedFailure(detail) ? (

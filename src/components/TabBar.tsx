@@ -1,21 +1,18 @@
 import { NavLink } from "react-router-dom";
 import {
-  ActivityIcon,
   CardIcon,
   HomeIcon,
   SaveIcon,
   SendIcon,
 } from "@/components/icons";
 
-// Bottom tab bar — mirrors the mobile app's 5-tab layout
-// (Home · Send · Card · Save · Activity). Send + Save are "coming soon" on web
-// for now (remit/yield deferred), but the tabs are present for parity.
+// Bottom tab bar - Home · Send · Card · Save. Activity is not a bottom-nav tab;
+// it's reachable from the home screen's "See all" on Recent activity.
 const TABS = [
   { to: "/home", label: "Home", Icon: HomeIcon },
   { to: "/send", label: "Send", Icon: SendIcon },
   { to: "/card", label: "Card", Icon: CardIcon },
   { to: "/save", label: "Save", Icon: SaveIcon },
-  { to: "/activity", label: "Activity", Icon: ActivityIcon },
 ];
 
 export function TabBar() {

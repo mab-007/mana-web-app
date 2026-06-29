@@ -151,7 +151,7 @@ function ReviewState() {
       </div>
       <h1 className="mt-3 font-serif text-[26px] text-ink">Reviewing your verification</h1>
       <p className="max-w-xs text-[15px] leading-6 text-ink-soft">
-        This usually takes under a minute. You can stay here — we'll move you forward
+        This usually takes under a minute. You can stay here - we'll move you forward
         automatically the moment it's done.
       </p>
       <div className="mt-3 w-full space-y-3 px-6">

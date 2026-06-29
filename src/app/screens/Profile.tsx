@@ -45,7 +45,7 @@ export function Profile() {
   if (loading) return <Loader label="Loading profile…" />;
 
   const fullName =
-    [user?.legalFirstName, user?.legalLastName].filter(Boolean).join(" ") || user?.displayName || "—";
+    [user?.legalFirstName, user?.legalLastName].filter(Boolean).join(" ") || user?.displayName || "-";
 
   return (
     <Screen footer={<Button label="Log out" className="!bg-field !text-danger" onClick={logoutAndGo} />}>
@@ -66,8 +66,8 @@ export function Profile() {
       {error ? <p className="mt-3 text-center text-sm text-danger">{error}</p> : null}
 
       <dl className="mt-6 rounded-card border border-border bg-surface px-4 shadow-card">
-        <Field label="Phone" value={user?.phoneE164 ?? "—"} />
-        <Field label="Email ID" value={user?.email ?? "—"} />
+        <Field label="Phone" value={user?.phoneE164 ?? "-"} />
+        <Field label="Email ID" value={user?.email ?? "-"} />
         <Field label="PIN" value={user?.pinSet ? "Set" : "Not set"} last={!user?.address} />
         {/* National ID is intentionally NOT shown — never stored (D23). */}
         {user?.address ? <Field label="Address" value={formatAddress(user.address)} last /> : null}

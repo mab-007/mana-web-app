@@ -315,8 +315,8 @@ export function Card() {
         e instanceof ApiError
           ? e.message
           : pinIntent === "replace"
-            ? "Couldn't replace — check your PIN."
-            : "Couldn't reveal — check your PIN.",
+            ? "Couldn't replace - check your PIN."
+            : "Couldn't reveal - check your PIN.",
       );
     } finally {
       setPinBusy(false);
@@ -535,7 +535,7 @@ export function Card() {
           <div className="flex flex-col items-center gap-2 px-6 py-10 text-center text-ink-faint">
             <CardOutlineIcon />
             <p className="max-w-xs text-[14px] leading-[21px] text-ink-soft">
-              No card activity yet — your card payments will show up here.
+              No card activity yet - your card payments will show up here.
             </p>
           </div>
         ) : (

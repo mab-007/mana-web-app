@@ -42,8 +42,9 @@ export function Send() {
 
   const minor = useMemo(() => (amount ? dollarsToMinor(amount) : 0n), [amount]);
   const spendableMinor = balance ? BigInt(balance.totals.spendableUsdc) : null;
-  const overBalance = spendableMinor !== null && minor > spendableMinor;
-  const canSend = minor > 0n && !overBalance;
+  // Don't block over-balance here - let the user continue to the review page so
+  // they see our rate up front; the insufficient-funds check lives on review.
+  const canSend = minor > 0n;
 
   function press(key: string) {
     setAmount((prev) => {
@@ -94,24 +95,17 @@ export function Send() {
       <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
         <p
           className={`font-sans text-[72px] font-extrabold tracking-[-0.02em] leading-none ${
-            overBalance ? "text-danger" : minor > 0n ? "text-ink" : "text-ink-faint"
+            minor > 0n ? "text-ink" : "text-ink-faint"
           }`}
         >
           <span className="text-[44px]">$</span>
           {amount || "0"}
         </p>
-        {overBalance ? (
-          <p className="max-w-[280px] text-[13px] font-semibold text-danger">
-            More than your balance
-            {spendableMinor !== null ? ` · ${formatUsdc(spendableMinor.toString())} available` : ""}
-          </p>
-        ) : (
-          <p className="max-w-[280px] text-[13px] text-ink-faint">
-            {spendableMinor !== null
-              ? `${formatUsdc(spendableMinor.toString())} available · to GCash, Maya, or a PH bank`
-              : "To GCash, Maya, or a bank in the Philippines"}
-          </p>
-        )}
+        <p className="max-w-[280px] text-[13px] text-ink-faint">
+          {spendableMinor !== null
+            ? `${formatUsdc(spendableMinor.toString())} available · to GCash, Maya, or a PH bank`
+            : "To GCash, Maya, or a bank in the Philippines"}
+        </p>
       </div>
 
       <NumericKeypad onKey={press} className="px-4" />

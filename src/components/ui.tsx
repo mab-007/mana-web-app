@@ -107,15 +107,25 @@ export function Button({
   );
 }
 
+// Red asterisk marking a required field. Use after an inline <span> label that
+// isn't a <Field> (selects, custom inputs): e.g. `Mobile number<ReqMark />`.
+export function ReqMark() {
+  return <span className="text-danger"> *</span>;
+}
+
 export function Field({
   label,
+  required,
   className = "",
   ...rest
-}: { label?: string } & InputHTMLAttributes<HTMLInputElement>) {
+}: { label?: string; required?: boolean } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="block">
       {label ? (
-        <span className="mb-1 block text-[13px] text-ink-soft">{label}</span>
+        <span className="mb-1 block text-[13px] text-ink-soft">
+          {label}
+          {required ? <ReqMark /> : null}
+        </span>
       ) : null}
       <input
         {...rest}

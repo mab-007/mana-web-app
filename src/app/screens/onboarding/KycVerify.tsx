@@ -78,7 +78,7 @@ export function KycVerify() {
 
   if (missing) {
     return (
-      <Spinner label="Verification link missing — head back and resubmit." />
+      <Spinner label="Verification link missing - head back and resubmit." />
     );
   }
   if (!fullUrl) return <Spinner label="Preparing verification…" />;

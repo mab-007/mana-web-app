@@ -58,7 +58,7 @@ export function OnrampAmount() {
 
       <h1 className="mt-2 font-serif text-[26px] text-ink">How much?</h1>
       <p className="mt-1 mb-6 text-[14px] text-ink-soft">
-        Pay in pesos from your {phPaymentLabel(paymentCode)} — we deliver US dollars to your wallet.
+        Pay in pesos from your {phPaymentLabel(paymentCode)} - we deliver US dollars to your wallet.
       </p>
 
       <span className="text-[12px] font-bold uppercase tracking-wide text-ink-faint">You pay</span>

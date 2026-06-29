@@ -55,7 +55,7 @@ export function Activity() {
         <div className="mt-10 flex flex-col items-center gap-3 px-6 text-center text-ink-faint">
           <ReceiptIcon size={48} />
           <p className="max-w-xs text-[15px] leading-[21px] text-ink-soft">
-            No activity yet — when you add or send money, it'll show up here.
+            No activity yet - when you add or send money, it'll show up here.
           </p>
         </div>
       ) : (

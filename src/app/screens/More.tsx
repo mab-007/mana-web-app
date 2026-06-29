@@ -38,7 +38,7 @@ export function More() {
   if (loading) return <Loader label="Loading…" />;
 
   const fullName =
-    [user?.legalFirstName, user?.legalLastName].filter(Boolean).join(" ") || user?.displayName || "—";
+    [user?.legalFirstName, user?.legalLastName].filter(Boolean).join(" ") || user?.displayName || "-";
 
   return (
     <Screen>

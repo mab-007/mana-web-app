@@ -109,7 +109,7 @@ export function OnrampAuthorize() {
         </div>
         <h1 className="mt-4 font-serif text-[24px] text-ink">Finish in the payment tab</h1>
         <p className="mt-2 max-w-[340px] text-[14px] leading-5 text-ink-soft">
-          We opened your PH provider's secure payment page in a new tab. Complete the payment there — this page updates
+          We opened your PH provider's secure payment page in a new tab. Complete the payment there - this page updates
           automatically once it's done.
         </p>
         {popupBlocked ? (

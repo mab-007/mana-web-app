@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, ErrorText, Field, Screen } from "@/components/ui";
+import { Button, ErrorText, Field, ReqMark, Screen } from "@/components/ui";
 import { api, ApiError, newIdempotencyKey, PHONE_COUNTRIES, type StartKycBody } from "@/lib/api";
 
 // NOTE: placeholder enums matching what Rain accepted in sandbox. Replace with
@@ -153,7 +153,7 @@ export function Kyc() {
         <h1 className="mt-6 font-serif text-[26px] text-ink">Verify your identity.</h1>
         <p className="mt-2 text-[15px] leading-6 text-ink-soft">
           Required to open your account. Your info goes straight to our regulated
-          partner — we never store your National ID.
+          partner - we never store your National ID.
         </p>
 
         <div className="mt-6 space-y-5">
@@ -161,6 +161,7 @@ export function Kyc() {
             <h2 className="font-serif text-[18px] text-ink">How can we reach you?</h2>
             <Field
               label="Email"
+              required
               type="email"
               inputMode="email"
               autoComplete="email"
@@ -169,7 +170,9 @@ export function Kyc() {
               placeholder="you@example.com"
             />
             <div>
-              <span className="mb-1 block text-[13px] text-ink-soft">Mobile number</span>
+              <span className="mb-1 block text-[13px] text-ink-soft">
+                Mobile number<ReqMark />
+              </span>
               <div className="flex gap-2">
                 {/* Country picker: flag + dial code, defaults to US. Sets the phone
                     dial prefix; the web KYC address stays US-only (rebuild deferred). */}
@@ -200,7 +203,8 @@ export function Kyc() {
             <h2 className="font-serif text-[18px] text-ink">A few details</h2>
             <div>
               <Field
-                label="National ID"
+                label="National ID or Passport no."
+                required
                 inputMode={isUS ? "numeric" : "text"}
                 autoComplete="off"
                 value={ssn}
@@ -219,7 +223,9 @@ export function Kyc() {
               </p>
             </div>
             <div>
-              <span className="mb-1 block text-[13px] text-ink-soft">Occupation</span>
+              <span className="mb-1 block text-[13px] text-ink-soft">
+                Occupation<ReqMark />
+              </span>
               <select className={SELECT_CLASS} value={occupation} onChange={(e) => setOccupation(e.target.value)}>
                 {OCCUPATION.map((o) => (
                   <option key={o.code} value={o.code}>
@@ -239,7 +245,9 @@ export function Kyc() {
               ) : null}
             </div>
             <div>
-              <span className="mb-1 block text-[13px] text-ink-soft">Annual income</span>
+              <span className="mb-1 block text-[13px] text-ink-soft">
+                Annual income<ReqMark />
+              </span>
               <select className={SELECT_CLASS} value={annualSalary} onChange={(e) => setAnnualSalary(e.target.value)}>
                 {SALARY.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -253,7 +261,9 @@ export function Kyc() {
           <section className="space-y-3 rounded-card border border-border bg-surface p-4 shadow-card">
             <h2 className="font-serif text-[18px] text-ink">Where do you live?</h2>
             <div>
-              <span className="mb-1 block text-[13px] text-ink-soft">Country</span>
+              <span className="mb-1 block text-[13px] text-ink-soft">
+                Country<ReqMark />
+              </span>
               <select
                 className={SELECT_CLASS}
                 value={countryCode}
@@ -267,7 +277,7 @@ export function Kyc() {
                 ))}
               </select>
             </div>
-            <Field label="Residential address" value={line1} onChange={(e) => setLine1(e.target.value)} placeholder="Street address" />
+            <Field label="Residential address" required value={line1} onChange={(e) => setLine1(e.target.value)} placeholder="Street address" />
             <Field value={line2} onChange={(e) => setLine2(e.target.value)} placeholder="Apt, suite, subdivision (optional)" />
             {isUS ? (
               <div className="flex gap-2">
@@ -275,13 +285,13 @@ export function Kyc() {
                   className="h-[52px] flex-1 rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="City"
+                  placeholder="City *"
                 />
                 <input
                   className="h-[52px] w-20 rounded-card border border-border bg-field text-center text-base text-ink outline-none focus:border-ink"
                   value={region}
                   onChange={(e) => setRegion(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2))}
-                  placeholder="State"
+                  placeholder="State *"
                   title="2-letter state code (e.g. TX)"
                   aria-label="State"
                 />
@@ -292,13 +302,13 @@ export function Kyc() {
                   className="h-[52px] w-full rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="City"
+                  placeholder="City *"
                 />
                 <input
                   className="h-[52px] w-full rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
                   value={region}
                   onChange={(e) => setRegion(e.target.value.slice(0, 120))}
-                  placeholder="State / Province"
+                  placeholder="State / Province *"
                   aria-label="State or province"
                 />
               </>
@@ -314,7 +324,7 @@ export function Kyc() {
                     : e.target.value.replace(/[^A-Za-z0-9 -]/g, "").slice(0, 12),
                 )
               }
-              placeholder={isUS ? "ZIP code" : "Postal code"}
+              placeholder={isUS ? "ZIP code *" : "Postal code *"}
             />
           </section>
         </div>

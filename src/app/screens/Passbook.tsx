@@ -15,7 +15,7 @@ export function Passbook() {
           📖
         </div>
         <p className="mt-4 max-w-xs text-[15px] leading-[21px] text-ink-soft">
-          No account transactions yet — deposits and withdrawals on your USD account will show up
+          No account transactions yet - deposits and withdrawals on your USD account will show up
           here.
         </p>
       </div>

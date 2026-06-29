@@ -105,7 +105,7 @@ export function OnrampStatus() {
             <h1 className="font-serif text-[26px] text-ink">Adding your money</h1>
             <p className="mt-2 font-sans text-[40px] font-extrabold tracking-[-0.02em] text-ink">{formatUsdc(usdcMinor)}</p>
             <p className="mt-2 max-w-[320px] text-[14px] leading-5 text-ink-soft">
-              Usually done in a few minutes. You can close this — it keeps going.
+              Usually done in a few minutes. You can close this - it keeps going.
             </p>
 
             <ol className="mt-7 w-full rounded-card border border-border bg-surface px-4 py-2 text-left shadow-card">

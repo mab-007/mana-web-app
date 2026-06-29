@@ -1,15 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, ErrorText, Field, Screen } from "@/components/ui";
+import { Button, ErrorText, Field, ReqMark, Screen } from "@/components/ui";
 import { api, ApiError, newIdempotencyKey } from "@/lib/api";
 
 const DOB = /^\d{4}-\d{2}-\d{2}$/;
-
-// Format raw digits into YYYY-MM-DD as the user types.
-function formatDob(t: string): string {
-  const d = t.replace(/\D/g, "").slice(0, 8);
-  return [d.slice(0, 4), d.slice(4, 6), d.slice(6, 8)].filter(Boolean).join("-");
-}
 
 function ageInYears(dob: string): number {
   const d = new Date(`${dob}T00:00:00Z`);
@@ -29,10 +23,20 @@ export function Name() {
   const [idempotencyKey] = useState(newIdempotencyKey);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [dob, setDob] = useState("");
+  // DOB entered as three boxes (MM / DD / YYYY); composed to the BE's YYYY-MM-DD.
+  const [month, setMonth] = useState("");
+  const [day, setDay] = useState("");
+  const [year, setYear] = useState("");
+  const dayRef = useRef<HTMLInputElement>(null);
+  const yearRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const dob =
+    month !== "" && day !== "" && year.length === 4
+      ? `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
+      : "";
+  const dobComplete = month !== "" && day !== "" && year.length === 4;
   const dobValid = DOB.test(dob) && ageInYears(dob) >= 18 && ageInYears(dob) <= 120;
   const valid = firstName.trim().length > 0 && lastName.trim().length > 0 && dobValid;
 
@@ -62,11 +66,12 @@ export function Name() {
       <div className="flex-1">
         <h1 className="mt-6 font-serif text-[26px] text-ink">Your legal name.</h1>
         <p className="mt-2 text-[15px] leading-6 text-ink-soft">
-          Use the name on your government ID — it has to match for the verification step.
+          Use the name on your government ID - it has to match for the verification step.
         </p>
         <div className="mt-6 space-y-4">
           <Field
             label="First name"
+            required
             autoFocus
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
@@ -74,21 +79,53 @@ export function Name() {
           />
           <Field
             label="Last name"
+            required
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             placeholder="Last name"
           />
           <div>
-            <Field
-              label="Date of birth"
-              inputMode="numeric"
-              value={dob}
-              onChange={(e) => setDob(formatDob(e.target.value))}
-              placeholder="YYYY-MM-DD"
-              maxLength={10}
-            />
-            {dob.length === 10 && !dobValid ? (
-              <p className="mt-1 text-[13px] text-danger">You must be at least 18.</p>
+            <span className="mb-1 block text-[13px] text-ink-soft">
+              Date of birth<ReqMark />
+            </span>
+            <div className="flex gap-2">
+              <input
+                className="h-[52px] w-full rounded-card border border-border bg-field px-4 text-center text-base text-ink outline-none focus:border-ink"
+                inputMode="numeric"
+                value={month}
+                placeholder="MM"
+                aria-label="Month"
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+                  setMonth(v);
+                  if (v.length === 2) dayRef.current?.focus();
+                }}
+              />
+              <input
+                ref={dayRef}
+                className="h-[52px] w-full rounded-card border border-border bg-field px-4 text-center text-base text-ink outline-none focus:border-ink"
+                inputMode="numeric"
+                value={day}
+                placeholder="DD"
+                aria-label="Day"
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+                  setDay(v);
+                  if (v.length === 2) yearRef.current?.focus();
+                }}
+              />
+              <input
+                ref={yearRef}
+                className="h-[52px] w-full rounded-card border border-border bg-field px-4 text-center text-base text-ink outline-none focus:border-ink"
+                inputMode="numeric"
+                value={year}
+                placeholder="YYYY"
+                aria-label="Year"
+                onChange={(e) => setYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </div>
+            {dobComplete && !dobValid ? (
+              <p className="mt-1 text-[13px] text-danger">Enter a valid date of birth - you must be at least 18.</p>
             ) : null}
           </div>
         </div>

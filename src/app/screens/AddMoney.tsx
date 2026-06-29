@@ -47,7 +47,7 @@ export function AddMoney() {
 
       <h1 className="mt-2 font-serif text-[26px] text-ink">How do you want to add money?</h1>
       <p className="mt-2 text-[14px] leading-5 text-ink-soft">
-        Pick a source. Fees and arrival times are shown up front — never at confirm.
+        Pick a source. Fees and arrival times are shown up front - never at confirm.
       </p>
 
       <div className="mt-5 space-y-3">

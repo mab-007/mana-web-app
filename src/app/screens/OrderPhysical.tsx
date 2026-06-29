@@ -349,7 +349,7 @@ export function OrderPhysical() {
           </div>
           {!quote.sufficient ? (
             <p className="mt-2 text-[13px] text-danger">
-              Your balance is {formatUsdc(quote.spendableMinor)} — add money to cover the {feeLabel}{" "}
+              Your balance is {formatUsdc(quote.spendableMinor)} - add money to cover the {feeLabel}{" "}
               fee.
             </p>
           ) : null}
