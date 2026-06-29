@@ -43,7 +43,8 @@ export function Pin() {
     setError(null);
     try {
       await api.setPin(pin, idempotencyKey);
-      navigate("/onboarding/name", { replace: true });
+      // MPIN is the final onboarding step (reordered to the end) → finish.
+      navigate("/onboarding/done", { replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong.");
       setConfirm("");

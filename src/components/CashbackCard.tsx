@@ -8,9 +8,9 @@ function rateLabel(bps: number): string {
 }
 
 // Card-screen cashback card (D134) — web parity with mobile FE/components/CashbackCard.tsx.
-// Shows the current cashback rate, what's been earned this month, and a progress bar
-// of cumulative monthly spend toward the next tier. The info (ⓘ) button opens the
-// explainer modal owned by the Card screen.
+// Shows the current cashback rate and what's been earned this month. The tier
+// progress (spend-toward-next-tier bar + subtext) was removed (cont.164) in favour
+// of generic copy. The info (ⓘ) button opens the explainer modal owned by the Card screen.
 export function CashbackCard({
   summary,
   onInfo,
@@ -18,14 +18,6 @@ export function CashbackCard({
   summary: CashbackSummaryResponse;
   onInfo: () => void;
 }) {
-  const spendMinor = Number(summary.eligibleSpendMinor);
-  const thresholdMinor = summary.nextTierThresholdMinor
-    ? Number(summary.nextTierThresholdMinor)
-    : null;
-  const atTopTier = thresholdMinor === null;
-  const progress = atTopTier ? 1 : Math.max(0, Math.min(spendMinor / thresholdMinor, 1));
-  const remainingMinor = atTopTier ? 0 : Math.max(0, thresholdMinor - spendMinor);
-
   return (
     <div className="rounded-card border border-border bg-surface p-4 shadow-card">
       <div className="flex items-center gap-2.5">
@@ -46,20 +38,9 @@ export function CashbackCard({
         <span className="text-[14px] font-medium text-ink-soft">earned this month</span>
       </p>
 
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-border">
-        <div className="h-2 rounded-full bg-success" style={{ width: `${Math.round(progress * 100)}%` }} />
-      </div>
-
-      {atTopTier ? (
-        <p className="mt-2 text-[13px] leading-[18px] text-ink-soft">
-          You're earning your top cashback rate.
-        </p>
-      ) : (
-        <p className="mt-2 text-[13px] leading-[18px] text-ink-soft">
-          {formatUsdc(String(spendMinor))} of {formatUsdc(String(thresholdMinor))} spent this month -{" "}
-          {formatUsdc(String(remainingMinor))} more to your next tier.
-        </p>
-      )}
+      <p className="mt-2 text-[13px] leading-[18px] text-ink-soft">
+        Earn cashback automatically on every eligible card purchase.
+      </p>
 
       {!summary.redemptionEnabled ? (
         <p className="mt-0.5 text-[12px] leading-4 text-ink-faint">

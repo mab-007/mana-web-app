@@ -265,8 +265,7 @@ export function RemitCompose() {
         {sheetError ? <p className="mt-3 text-center text-sm text-danger">{sheetError}</p> : null}
 
         <p className="mt-4 text-center text-[12px] leading-[18px] text-ink-faint">
-          By tapping "Send now," you authorize the conversion and transfer. Cancel anytime before the
-          recipient confirms receipt.
+          By tapping "Send now," you authorize the conversion and transfer.
         </p>
       </Screen>
     );

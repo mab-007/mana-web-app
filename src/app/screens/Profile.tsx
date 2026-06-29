@@ -5,6 +5,7 @@ import { Button, Loader, Screen } from "@/components/ui";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { api, ApiError, type OnboardingState } from "@/lib/api";
 import { initialsOf } from "@/lib/format";
+import { ChevronRight, HelpIcon } from "@/components/icons";
 
 // 2-letter country code → display name for the address block (others fall back
 // to the raw code). Mirrors the mobile profile.
@@ -72,6 +73,22 @@ export function Profile() {
         {/* National ID is intentionally NOT shown — never stored (D23). */}
         {user?.address ? <Field label="Address" value={formatAddress(user.address)} last /> : null}
       </dl>
+
+      {/* Help & Support — phone/email + the website FAQ, mirrored in-app. */}
+      <div className="mt-4 rounded-card border border-border bg-surface px-4 shadow-card">
+        <button
+          onClick={() => navigate("/help")}
+          className="flex w-full items-center gap-4 py-4 text-left active:opacity-60"
+        >
+          <span className="shrink-0 text-ink-soft">
+            <HelpIcon />
+          </span>
+          <span className="flex-1 text-[15px] font-medium text-ink">Help &amp; Support</span>
+          <span className="text-ink-faint">
+            <ChevronRight />
+          </span>
+        </button>
+      </div>
     </Screen>
   );
 }

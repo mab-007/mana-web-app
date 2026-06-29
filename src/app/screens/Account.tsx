@@ -74,7 +74,7 @@ export function Account() {
       <div className="mt-6 grid grid-cols-2 gap-3">
         <Button
           label="Send"
-          className="!border !border-border !bg-transparent !text-accent"
+          className="!border !border-border !bg-white !text-accent"
           onClick={() => navigate("/send")}
         />
         <Button label="Add money" onClick={() => navigate("/add-money")} />

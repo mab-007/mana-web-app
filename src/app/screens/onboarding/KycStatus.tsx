@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Screen } from "@/components/ui";
 import { api, ApiError, type KycState } from "@/lib/api";
-import { humanizeKycReason, type KycTone, supportMailto } from "@/lib/kycReasons";
+import { humanizeKycReason, type KycTone } from "@/lib/kycReasons";
 
 const ACTION_NEEDED = new Set(["needsVerification", "needsInformation", "notStarted"]);
 const REVIEW_STEPS = ["Details received", "Reviewing your identity", "Account ready"] as const;
@@ -86,17 +86,13 @@ export function KycStatus() {
         <>
           {state?.completionLink ? <Button label="Resume verification" onClick={resume} /> : null}
           {outcome.contactSupport ? (
-            <a href={supportMailto(state?.reason)} className="block">
-              <Button label="Contact support" className="!bg-field !text-ink" />
-            </a>
+            <Button label="Contact support" className="!bg-field !text-ink" onClick={() => navigate("/help")} />
           ) : null}
         </>
       ) : rejected ? (
         <>
           {outcome?.contactSupport ? (
-            <a href={supportMailto(state?.reason)} className="block">
-              <Button label="Contact support" />
-            </a>
+            <Button label="Contact support" onClick={() => navigate("/help")} />
           ) : null}
           <Button label="Back to start" className="!bg-field !text-ink" onClick={startOver} />
         </>

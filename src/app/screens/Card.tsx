@@ -730,7 +730,6 @@ export function Card() {
           <ul className="mt-4 space-y-3">
             {[
               "Earn cashback on every card purchase. ATM withdrawals, cash advances and transfers don't qualify.",
-              "Your rate rises as you spend more in a month, and resets at the start of each new month.",
               "Cashback becomes available to spend 30 days after each qualifying purchase.",
               "If you refund a purchase, the cashback earned on it is removed.",
             ].map((line, i) => (

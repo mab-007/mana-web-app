@@ -40,6 +40,7 @@ import { More } from "@/app/screens/More";
 import { Invite } from "@/app/screens/Invite";
 import { InviteTracker } from "@/app/screens/InviteTracker";
 import { Profile } from "@/app/screens/Profile";
+import { Help } from "@/app/screens/Help";
 import { About } from "@/app/screens/About";
 import { Passbook } from "@/app/screens/Passbook";
 import { InterestDetail } from "@/app/screens/InterestDetail";
@@ -121,6 +122,7 @@ export function App() {
       <Route path="/invite" element={<RequireAuth><Invite /></RequireAuth>} />
       <Route path="/invite-tracker" element={<RequireAuth><InviteTracker /></RequireAuth>} />
       <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+      <Route path="/help" element={<RequireAuth><Help /></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

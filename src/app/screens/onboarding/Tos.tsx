@@ -14,10 +14,10 @@ function formatPublished(version: string): string {
   return `${parseInt(d, 10)} ${MONTHS[parseInt(mo, 10) - 1]} ${y}`;
 }
 
-// Onboarding Terms of Service (D85) — a mandatory step shown after the name step,
-// before KYC (full parity with mobile FE/app/onboarding/tos.tsx). Proceeding
+// Onboarding Terms of Service (D85) — a mandatory step shown after KYC approval
+// and before MPIN (reordered: MPIN moved to the end of the funnel). Proceeding
 // records acceptance of BOTH the terms and the privacy policy (acceptTos →
-// tos_acceptances) and advances to KYC.
+// tos_acceptances), advances the step kyc_approved → tos_accepted, and routes to MPIN.
 export function Tos() {
   const navigate = useNavigate();
   const [idempotencyKey] = useState(newIdempotencyKey);
@@ -40,7 +40,8 @@ export function Tos() {
     setError(null);
     try {
       await api.acceptTos(legal.version, idempotencyKey);
-      navigate("/onboarding/done", { replace: true });
+      // After ToS, set MPIN — the final onboarding gate (reordered to the end).
+      navigate("/onboarding/pin", { replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Something went wrong.");
       proceedingRef.current = false;

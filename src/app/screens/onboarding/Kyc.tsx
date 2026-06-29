@@ -76,7 +76,9 @@ export function Kyc() {
   const isUS = countryCode === "US";
 
   const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
-  const phoneValid = /^\d{4,15}$/.test(phoneNumber);
+  const isPHPhone = phoneCountryCode === "63";
+  // PH (+63): exactly 10 digits, must start with 9 (e.g. 9171234567). Default: exactly 10 digits.
+  const phoneValid = isPHPhone ? /^9\d{9}$/.test(phoneNumber) : /^\d{10}$/.test(phoneNumber);
   const nationalIdValid = isUS ? /^\d{9}$/.test(ssn) : /^[A-Za-z0-9]{4,20}$/.test(ssn);
   const regionValid = isUS ? region.length === 2 : region.trim().length >= 1;
   const postalValid = isUS ? /^\d{5}$/.test(postalCode) : postalCode.trim().length >= 1;
@@ -192,10 +194,17 @@ export function Kyc() {
                   className="h-[52px] flex-1 rounded-card border border-border bg-field px-4 text-base text-ink outline-none focus:border-ink"
                   value={phoneNumber}
                   inputMode="numeric"
-                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 15))}
-                  placeholder="4155550123"
+                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder={isPHPhone ? "9171234567" : "4155550123"}
                 />
               </div>
+              {phoneNumber && !phoneValid ? (
+                <p className="mt-1 text-[12px] text-danger">
+                  {isPHPhone
+                    ? "PH numbers must be 10 digits and start with 9."
+                    : "Enter a 10-digit number."}
+                </p>
+              ) : null}
             </div>
           </section>
 
