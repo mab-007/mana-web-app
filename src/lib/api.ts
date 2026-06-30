@@ -370,7 +370,7 @@ export interface CardTxnView {
   status: "authorized" | "settled" | "reversed" | "failed";
   amount: string; // minor units
   currency: string;
-  merchant: { name?: string; mcc?: string; city?: string; country?: string };
+  merchant: { name?: string; displayName?: string; logoUrl?: string; mcc?: string; city?: string; country?: string };
   authorizedAmount?: string;
   settledAmount?: string;
   decision: "approved" | "declined";

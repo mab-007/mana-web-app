@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CardFront } from "@/components/CardFront";
 import { CashbackCard } from "@/components/CashbackCard";
 import { CardOutlineIcon, EyeIcon, GearIcon, SnowIcon } from "@/components/icons";
+import { MerchantLogo } from "@/components/MerchantLogo";
 import { RichText } from "@/components/RichText";
 import { TabHeader } from "@/components/TabHeader";
 import { Button, Loader, TabScreen } from "@/components/ui";
@@ -16,7 +17,7 @@ import {
   newIdempotencyKey,
   type ReplaceReason,
 } from "@/lib/api";
-import { cardStatusLabel, declineReasonLabel, formatDate, formatUsdc } from "@/lib/format";
+import { avatarTint, cardStatusLabel, declineReasonLabel, formatDate, formatUsdc, initialsFromName } from "@/lib/format";
 
 interface Revealed {
   number: string;
@@ -542,12 +543,18 @@ export function Card() {
           <ul className="divide-y divide-border">
             {feed.map((t) => {
               const declined = t.decision === "declined";
+              const label = t.merchant?.displayName ?? t.merchant?.name ?? "Card transaction";
+              const tint = avatarTint(label);
               return (
-                <li key={t.id} className="flex items-center justify-between py-3">
-                  <span className="min-w-0">
-                    <span className="block truncate text-[15px] text-ink">
-                      {t.merchant?.name ?? "Card transaction"}
-                    </span>
+                <li key={t.id} className="flex items-center gap-3 py-3">
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-[16px] font-bold"
+                    style={t.merchant?.logoUrl ? { backgroundColor: "#FFFFFF" } : { backgroundColor: tint.bg, color: tint.fg }}
+                  >
+                    {t.merchant?.logoUrl ? <MerchantLogo url={t.merchant.logoUrl} size={44} /> : initialsFromName(label)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] text-ink">{label}</span>
                     <span className="block text-[12px] text-ink-faint">
                       {formatDate(t.occurredAt)}
                       {declined ? ` · ${declineReasonLabel(t.declineReason)}` : ""}

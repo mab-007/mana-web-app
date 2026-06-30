@@ -149,7 +149,7 @@ const TX_LABELS: Record<string, string> = {
   card_settle: "Card purchase",
   card_authz_reversal: "Card reversal",
   yield_accrual: "Interest earned",
-  yield_deposit: "Deposit payment", // money moved into Save (cont.167 — was generic "Yield deposit")
+  yield_deposit: "Transfer to save", // money moved into Save (cont.170 — was "Deposit payment")
   // D134/D133 — reward kinds that surface in the activity feed. cashback_accrual is
   // the EARN row (shown "+"); cashback_redeem is hidden server-side (INTERNAL_FEED_KINDS)
   // but labelled for completeness. `reward` is the referral payout ($25, D133).

@@ -6,7 +6,6 @@ import {
   formatDateShort,
   formatUsdc,
   initialsFromName,
-  knownMerchant,
   txDisplayName,
 } from "@/lib/format";
 
@@ -25,8 +24,10 @@ export function ActivityRow({ t, onClick }: { t: TxView; onClick?: () => void })
   const isInterest = t.kind === "yield_accrual";
   const isSaveDeposit = t.kind === "yield_deposit";
   const isMoneyAdded = MONEY_ADDED_KINDS.has(t.kind);
-  const merchantBrand = CARD_KINDS.has(t.kind)
-    ? knownMerchant((t.metadata as { merchantName?: string } | undefined)?.merchantName)
+  // Brand logo URL comes from the BE (services/spend/merchants) on the transaction
+  // metadata for card rows — the clean displayName is already folded into txDisplayName.
+  const merchantLogoUrl = CARD_KINDS.has(t.kind)
+    ? (t.metadata as { logoUrl?: string } | undefined)?.logoUrl ?? null
     : null;
   const tint = avatarTint(name);
 
@@ -38,7 +39,7 @@ export function ActivityRow({ t, onClick }: { t: TxView; onClick?: () => void })
       <span
         className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-[16px] font-bold"
         style={
-          merchantBrand
+          merchantLogoUrl
             ? { backgroundColor: "#FFFFFF" }
             : isInterest || isSaveDeposit
               ? { backgroundColor: "#2E7D5B", color: "#FFFFFF" }
@@ -47,8 +48,8 @@ export function ActivityRow({ t, onClick }: { t: TxView; onClick?: () => void })
                 : { backgroundColor: tint.bg, color: tint.fg }
         }
       >
-        {merchantBrand ? (
-          <MerchantLogo id={merchantBrand} size={44} />
+        {merchantLogoUrl ? (
+          <MerchantLogo url={merchantLogoUrl} size={44} />
         ) : isSaveDeposit ? (
           <PercentIcon />
         ) : isInterest ? (

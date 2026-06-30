@@ -51,7 +51,7 @@ export function Home() {
 
   return (
     <TabScreen>
-      <TabHeader title="Banking" />
+      <TabHeader title="Home" />
 
       {/* USD wallet — tap the card body to open the account detail (L1) */}
       <button
