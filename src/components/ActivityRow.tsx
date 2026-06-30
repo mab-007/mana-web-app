@@ -23,6 +23,7 @@ export function ActivityRow({ t, onClick }: { t: TxView; onClick?: () => void })
   const isFailed = t.status === "failed";
   const incoming = t.direction === "credit";
   const isInterest = t.kind === "yield_accrual";
+  const isSaveDeposit = t.kind === "yield_deposit";
   const isMoneyAdded = MONEY_ADDED_KINDS.has(t.kind);
   const merchantBrand = CARD_KINDS.has(t.kind)
     ? knownMerchant((t.metadata as { merchantName?: string } | undefined)?.merchantName)
@@ -39,7 +40,7 @@ export function ActivityRow({ t, onClick }: { t: TxView; onClick?: () => void })
         style={
           merchantBrand
             ? { backgroundColor: "#FFFFFF" }
-            : isInterest
+            : isInterest || isSaveDeposit
               ? { backgroundColor: "#2E7D5B", color: "#FFFFFF" }
               : isMoneyAdded
                 ? { backgroundColor: "#FFFFFF", border: "1px solid #E4DCCE" }
@@ -48,6 +49,8 @@ export function ActivityRow({ t, onClick }: { t: TxView; onClick?: () => void })
       >
         {merchantBrand ? (
           <MerchantLogo id={merchantBrand} size={44} />
+        ) : isSaveDeposit ? (
+          <PercentIcon />
         ) : isInterest ? (
           <TrendingUpIcon />
         ) : isMoneyAdded ? (
@@ -73,6 +76,18 @@ export function ActivityRow({ t, onClick }: { t: TxView; onClick?: () => void })
         {formatUsdc(t.grossAmount)}
       </span>
     </button>
+  );
+}
+
+// Green circle + percent glyph for Save deposits ("Deposit payment"), matching the
+// yield/interest green family but visually distinct from the trending-up interest icon.
+function PercentIcon() {
+  return (
+    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="19" y1="5" x2="5" y2="19" />
+      <circle cx="6.5" cy="6.5" r="2.5" />
+      <circle cx="17.5" cy="17.5" r="2.5" />
+    </svg>
   );
 }
 
