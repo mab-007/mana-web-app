@@ -12,7 +12,7 @@ import {
   type YieldPassbookEntry,
   type YieldStatusResponse,
 } from "@/lib/api";
-import { formatUsdc, roundsToZeroInterest, roundsToZeroUsdc } from "@/lib/format";
+import { formatUsdc, roundsToZeroInterest } from "@/lib/format";
 
 // "$1,234.56" → ["$1,234", ".56"] so the cents can render smaller (ref design).
 function splitAmount(minor: string): [string, string] {
@@ -167,31 +167,31 @@ export function Save() {
             </div>
           </div>
 
-          {/* Interest-earned stats — hidden entirely until there's lifetime interest
-              to show, so a brand-new Save wallet doesn't display "$0.00". (cont.150) */}
-          {!roundsToZeroUsdc(status.interestLifetimeMinor) ? (
-            <div className="mt-4 flex rounded-2xl border border-border bg-surface py-5 shadow-card">
-              <div className="flex flex-1 flex-col items-center gap-0.5">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
-                  {home.thisMonthLabel}
-                </p>
-                <p className="mt-1 text-[22px] font-bold text-success">
-                  {formatUsdc(status.interestThisMonthMinor)}
-                </p>
-                <p className="text-[12px] text-ink-faint">{home.interestEarnedLabel}</p>
-              </div>
-              <div className="my-1 w-px bg-border" />
-              <div className="flex flex-1 flex-col items-center gap-0.5">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
-                  {home.lifetimeLabel}
-                </p>
-                <p className="mt-1 text-[22px] font-bold text-success">
-                  {formatUsdc(status.interestLifetimeMinor)}
-                </p>
-                <p className="text-[12px] text-ink-faint">{home.interestEarnedLabel}</p>
-              </div>
+          {/* Interest-earned stats (THIS MONTH / LIFETIME) — always shown for opted-in
+              users to match the mobile Save tab + the design. Values read "$0.00" until
+              interest accrues. (Previously hidden when lifetime interest rounded to zero,
+              cont.150 — un-gated per founder ask so the row is a permanent part of Save.) */}
+          <div className="mt-4 flex rounded-2xl border border-border bg-surface py-5 shadow-card">
+            <div className="flex flex-1 flex-col items-center gap-0.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
+                {home.thisMonthLabel}
+              </p>
+              <p className="mt-1 text-[22px] font-bold text-success">
+                {formatUsdc(status.interestThisMonthMinor)}
+              </p>
+              <p className="text-[12px] text-ink-faint">{home.interestEarnedLabel}</p>
             </div>
-          ) : null}
+            <div className="my-1 w-px bg-border" />
+            <div className="flex flex-1 flex-col items-center gap-0.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-ink-faint">
+                {home.lifetimeLabel}
+              </p>
+              <p className="mt-1 text-[22px] font-bold text-success">
+                {formatUsdc(status.interestLifetimeMinor)}
+              </p>
+              <p className="text-[12px] text-ink-faint">{home.interestEarnedLabel}</p>
+            </div>
+          </div>
 
           <div className="mt-4 rounded-2xl border border-border bg-surface px-5 py-2 shadow-card">
             <div className="flex items-center justify-between pb-1 pt-2">
