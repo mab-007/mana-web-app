@@ -143,7 +143,7 @@ export function initialsOf(first?: string | null, last?: string | null): string 
 const TX_LABELS: Record<string, string> = {
   fund_in: "Money added",
   fund_in_returned: "Deposit returned",
-  crypto_deposit: "Crypto deposit",
+  crypto_deposit: "Money added",
   remit: "Sent to family",
   card_authz: "Card authorization",
   card_settle: "Card purchase",
@@ -215,9 +215,36 @@ export function formatDateTime(iso: string): string {
  */
 export function txDisplayName(t: { kind: string; metadata?: Record<string, unknown> }): string {
   const m = t.metadata ?? {};
-  const name = m.displayName ?? m.counterparty ?? m.merchant;
+  const name = m.displayName ?? m.counterparty ?? m.merchantName ?? m.merchant;
   if (typeof name === "string" && name.trim()) return capitalizeFirst(name.trim());
   return txLabel(t.kind);
+}
+
+// ── Merchant logos (curated, privacy-safe) ────────────────────────────────────
+// Card metadata only carries a freeform merchant name ("Amazon.com", "AMZN Mktp US").
+// Map it to a known brand id so the activity row can show a BUNDLED logo (no
+// third-party lookups). Unknown merchants return null → colored-initial fallback.
+// To add a merchant: add a pattern here + a glyph in MerchantLogo's registry.
+const MERCHANT_PATTERNS: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ["amazon", ["amazon", "amzn"]],
+  ["walmart", ["walmart"]],
+  ["uber", ["uber"]], // also covers "Uber Eats"
+  ["starbucks", ["starbucks", "sbux"]],
+  // Avoid bare "apple" (would catch Applebee's); match the billing descriptors.
+  ["apple", ["applecom", "itunes", "applemusic", "applestore", "appleinc"]],
+  ["youtube", ["youtube"]], // YouTube + YouTube Music collapse to one mark
+  ["spotify", ["spotify"]],
+  ["netflix", ["netflix", "nflx"]],
+  // PENDING: gcash, maya — logos not yet provided.
+];
+/** A bundled-logo brand id if the merchant name matches a curated entry, else null. */
+export function knownMerchant(merchantName?: string | null): string | null {
+  if (!merchantName) return null;
+  const k = merchantName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const [id, pats] of MERCHANT_PATTERNS) {
+    if (pats.some((p) => k.includes(p))) return id;
+  }
+  return null;
 }
 
 /** First 1–2 letters of a display name, for the round avatar. */
